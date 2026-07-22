@@ -1,0 +1,53 @@
+id: exp:microscopy:pfm-01
+version: placeholder-0.1
+name: Piezoresponse force microscopy
+kind: experimental
+description: >-
+  Piezoresponse force microscopy capability for mapping electromechanical
+  response, domain structure, switching behavior, and local hysteresis.
+domains:
+  - materials science
+  - ferroelectrics
+  - two-dimensional materials
+methods:
+  - piezoresponse force microscopy
+  - switching spectroscopy PFM
+  - local hysteresis measurement
+inputs:
+  - mounted sample with compatible surface and electrical geometry
+outputs:
+  - PFM amplitude map
+  - PFM phase map
+  - local hysteresis loop
+  - switching spectroscopy dataset
+tags:
+  - PFM
+  - scanning probe microscopy
+  - electromechanical characterization
+parameters:
+  - name: ac_drive_amplitude
+    description: AC excitation amplitude; add the verified operating range.
+    unit: V
+  - name: drive_frequency
+    description: Excitation frequency; add supported resonance-tracking modes and range.
+    unit: kHz
+  - name: dc_bias
+    description: Applied DC bias or sweep range.
+    unit: V
+  - name: scan_size
+    description: Requested lateral scan size.
+    unit: um
+  - name: contact_force
+    description: Applied contact force or force-control setpoint.
+    unit: nN
+requirements:
+  - Replace with verified sample conductivity, grounding, roughness, and mounting requirements.
+constraints:
+  - Probe types, environmental controls, spatial resolution, and voltage limits are not yet populated.
+safety_notes:
+  - Follow approved electrical biasing and sample-handling procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm instrument modes, probes, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with instrument records and SOP identifiers.

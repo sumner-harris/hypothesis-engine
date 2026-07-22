@@ -1,0 +1,25 @@
+<section id="leaderboard-panel"
+         hx-get="/sessions/{{ session.id }}/leaderboard"
+         hx-trigger="every 5s"
+         hx-swap="outerHTML"
+         aria-live="polite">
+    <h2>Leaderboard ({{ hypotheses|length }})</h2>
+    {% if not hypotheses %}
+    <p><em>No hypotheses yet — agents are working.</em></p>
+    {% else %}
+    <table id="leaderboard">
+        <thead><tr><th>Elo</th><th>State</th><th>Title</th><th>Strategy</th><th>Matches</th></tr></thead>
+        <tbody>
+        {% for h in hypotheses %}
+        <tr>
+            <td>{% if h.elo %}{{ "%.0f"|format(h.elo) }}{% else %}—{% endif %}</td>
+            <td><span class="status status-{{ h.state }}">{{ h.state }}</span></td>
+            <td><a href="/sessions/{{ session.id }}/hypotheses/{{ h.id }}">{{ h.title or h.id }}</a></td>
+            <td><code>{{ h.strategy }}</code></td>
+            <td>{{ h.matches_played }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</section>

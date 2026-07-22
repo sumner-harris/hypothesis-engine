@@ -1,0 +1,23 @@
+{# Modified from the original work. #}
+{% extends "base.html" %}
+{% block title %}Overview — {{ session.id[-12:] }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ul>
+        <li><a href="/">Sessions</a></li>
+        <li><a href="/sessions/{{ session.id }}">{{ session.id[-12:] }}</a></li>
+        <li>overview</li>
+    </ul>
+</nav>
+<details>
+    <summary>Raw markdown</summary>
+    <pre>{{ overview_md }}</pre>
+</details>
+<article class="overview-content" data-render-math>
+    {{ overview_html | safe }}
+</article>
+{% endblock %}
+{% block scripts %}
+<script src="/static/overview_math.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+{% endblock %}

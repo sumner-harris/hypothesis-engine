@@ -1,0 +1,200 @@
+# Initial literature-discovery lenses for computer science and AI research.
+# Point [generation].discovery_profiles at this file to use these profiles.
+required_work_packages:
+  - id: method_implementation
+    label: Method / implementation
+    objective: Define the algorithm, architecture, system, or implementation that embodies the claim.
+    expected_outputs:
+      - model, algorithm, training, inference, or system design details
+      - implementation steps and required resources
+      - ablations that isolate the claimed contribution
+  - id: data_training_signal
+    label: Data / training signal
+    objective: Define the data, supervision, synthetic signal, or interaction signal needed to test the claim.
+    expected_outputs:
+      - datasets, splits, filtering, annotation, or synthetic-data generation plan
+      - contamination and leakage checks
+      - data-quality and distribution-shift controls
+  - id: evaluation_ablation
+    label: Evaluation / ablation
+    objective: Define benchmarks, metrics, baselines, and statistical tests that determine whether the claim holds.
+    expected_outputs:
+      - primary and secondary metrics
+      - baseline models, ablations, and negative controls
+      - reproducibility, variance, and significance checks
+  - id: systems_compute
+    label: Systems / compute constraints
+    objective: Define compute, latency, memory, deployment, or scaling constraints that affect feasibility.
+    expected_outputs:
+      - compute budget, hardware, throughput, latency, and memory measurements
+      - scaling or deployment limits
+      - cost-quality tradeoffs and operational failure modes
+  - id: robustness_safety
+    label: Robustness / safety / failure criteria
+    objective: Define stress tests and risks that would bound, falsify, or make the method unsafe to use.
+    expected_outputs:
+      - adversarial, privacy, calibration, distribution-shift, or reliability checks
+      - misuse or safety evaluations where relevant
+      - explicit failure criteria and mitigation tests
+
+profiles:
+- id: algorithms_architecture
+  label: Algorithms and architecture
+  objective: Focus on algorithmic structure, model architecture, objectives, optimization
+    choices, inference procedures, and design tradeoffs.
+  search_guidance:
+  - Use architecture- and algorithm-oriented terms such as attention, retrieval, planning,
+    objective, loss, optimizer, routing, decoding, training dynamics, or inference-time compute
+    as appropriate.
+  - Prioritize papers that explain why a method works, which design choice matters, or what
+    algorithmic bottleneck is being addressed.
+  avoid_overfocus: Do not spend most searches on benchmarks or applications unless they isolate
+    an architectural or algorithmic cause.
+  suggested_query_angles:
+  - architecture variants and ablations
+  - training objectives and optimization behavior
+  - inference-time algorithms and decoding strategies
+  primary_driver_guidance: Make the architecture or algorithmic design the central contribution,
+    then specify data, evaluation, systems constraints, and failure tests needed to validate
+    it.
+  required_study_elements:
+  - primary algorithmic, data, evaluation, systems, safety, or transfer claim led by this
+    lens
+  - method or implementation design, including model, data, training, or system components
+    as needed
+  - evaluation plan with baselines, metrics, ablations, and reproducibility checks
+  - evidence or analysis explaining why the approach should work and when it should fail
+  - compute, deployment, robustness, safety, or data-quality constraints and falsification
+    tests
+- id: data_training_signal
+  label: Data and training signal
+  objective: Focus on datasets, data quality, synthetic data, supervision, pretraining mixtures,
+    filtering, annotation, preference data, and distillation signals.
+  search_guidance:
+  - Use data-oriented terms such as dataset, corpus, pretraining mixture, synthetic data,
+    filtering, annotation, preference data, instruction tuning, distillation, contamination,
+    or data curation.
+  - Look for evidence that changes in data composition or supervision explain changes in capability,
+    robustness, or failure behavior.
+  avoid_overfocus: Do not treat model architecture as the central explanation unless the paper
+    also discusses training data or supervision effects.
+  suggested_query_angles:
+  - dataset construction and filtering
+  - synthetic data and distillation
+  - preference data and supervision quality
+  primary_driver_guidance: Make the data or supervision strategy the central contribution,
+    then specify the model, evaluation, systems implications, and robustness checks needed
+    to validate it.
+  required_study_elements:
+  - primary algorithmic, data, evaluation, systems, safety, or transfer claim led by this
+    lens
+  - method or implementation design, including model, data, training, or system components
+    as needed
+  - evaluation plan with baselines, metrics, ablations, and reproducibility checks
+  - evidence or analysis explaining why the approach should work and when it should fail
+  - compute, deployment, robustness, safety, or data-quality constraints and falsification
+    tests
+- id: evaluation_benchmarks
+  label: Evaluation and benchmarks
+  objective: Focus on evaluation protocols, benchmark validity, metrics, ablations, reproducibility,
+    leakage, contamination, and measurement gaps.
+  search_guidance:
+  - Use evaluation terms such as benchmark, metric, ablation, reproducibility, leaderboard,
+    contamination, leakage, generalization, calibration, or statistical significance.
+  - Prioritize papers that reveal whether an apparent improvement is robust, measurable, reproducible,
+    or benchmark-specific.
+  avoid_overfocus: Do not only collect high-performing methods; deliberately search for evaluation
+    failures and limitations.
+  suggested_query_angles:
+  - benchmark limitations and leakage
+  - ablation and reproducibility studies
+  - metrics, calibration, and generalization tests
+  primary_driver_guidance: Make the evaluation or benchmark claim the central contribution,
+    then specify methods to test, data needed, implementation constraints, and failure cases.
+  required_study_elements:
+  - primary algorithmic, data, evaluation, systems, safety, or transfer claim led by this
+    lens
+  - method or implementation design, including model, data, training, or system components
+    as needed
+  - evaluation plan with baselines, metrics, ablations, and reproducibility checks
+  - evidence or analysis explaining why the approach should work and when it should fail
+  - compute, deployment, robustness, safety, or data-quality constraints and falsification
+    tests
+- id: systems_efficiency
+  label: Systems, efficiency, and deployment
+  objective: Focus on compute, latency, memory, serving, distributed training, quantization,
+    compilers, kernels, deployment constraints, and operational tradeoffs.
+  search_guidance:
+  - Use systems terms such as throughput, latency, memory, batching, quantization, pruning,
+    compiler, kernel, GPU, distributed training, serving, caching, or cost.
+  - Look for constraints that change which algorithms are practical at scale or in deployment.
+  avoid_overfocus: Do not focus only on model quality unless the paper also discusses compute,
+    latency, memory, or deployment behavior.
+  suggested_query_angles:
+  - inference efficiency and serving
+  - training systems and distributed compute
+  - compression, quantization, and hardware constraints
+  primary_driver_guidance: Make the systems or efficiency contribution the central driver,
+    then specify the model behavior, benchmark, data assumptions, and deployment constraints
+    needed to validate it.
+  required_study_elements:
+  - primary algorithmic, data, evaluation, systems, safety, or transfer claim led by this
+    lens
+  - method or implementation design, including model, data, training, or system components
+    as needed
+  - evaluation plan with baselines, metrics, ablations, and reproducibility checks
+  - evidence or analysis explaining why the approach should work and when it should fail
+  - compute, deployment, robustness, safety, or data-quality constraints and falsification
+    tests
+- id: robustness_safety
+  label: Robustness, safety, and failure modes
+  objective: Focus on hallucination, adversarial robustness, privacy, misuse, distribution
+    shift, calibration, uncertainty, reliability, and safety evaluations.
+  search_guidance:
+  - Use robustness and safety terms such as adversarial, distribution shift, hallucination,
+    privacy, memorization, jailbreak, red teaming, uncertainty, calibration, or failure analysis.
+  - Prioritize papers that expose limits, failures, risks, or mitigation strategies rather
+    than only reporting average-case performance.
+  avoid_overfocus: Do not only search supportive capability papers; this lens should make
+    the hypothesis harder to fool and easier to falsify.
+  suggested_query_angles:
+  - adversarial and distribution-shift failures
+  - privacy, memorization, and misuse
+  - calibration, uncertainty, and reliability
+  primary_driver_guidance: Make robustness, safety, or failure behavior the central driver,
+    then specify the method, evaluation, data setting, and mitigation or falsification tests.
+  required_study_elements:
+  - primary algorithmic, data, evaluation, systems, safety, or transfer claim led by this
+    lens
+  - method or implementation design, including model, data, training, or system components
+    as needed
+  - evaluation plan with baselines, metrics, ablations, and reproducibility checks
+  - evidence or analysis explaining why the approach should work and when it should fail
+  - compute, deployment, robustness, safety, or data-quality constraints and falsification
+    tests
+- id: adjacent_transfer
+  label: Adjacent methods and transfer
+  objective: Focus on neighboring subfields, older algorithms, transferable methods, and ideas
+    from information retrieval, databases, programming languages, HCI, optimization, cognitive
+    science, or control.
+  search_guidance:
+  - Use transfer-oriented terms such as related work, retrieval, planning, program synthesis,
+    database systems, optimization, human-computer interaction, cognitive model, or control.
+  - Search beyond the exact task when adjacent methods could transfer back to the target problem.
+  avoid_overfocus: Do not stay inside only the newest benchmark literature; this lens should
+    broaden the source pool.
+  suggested_query_angles:
+  - adjacent subfield methods
+  - older algorithmic analogs
+  - transfer from neighboring tasks
+  primary_driver_guidance: Make transfer from an adjacent method or subfield the central driver,
+    then specify the target AI task, implementation path, evaluation, and limits of transfer.
+  required_study_elements:
+  - primary algorithmic, data, evaluation, systems, safety, or transfer claim led by this
+    lens
+  - method or implementation design, including model, data, training, or system components
+    as needed
+  - evaluation plan with baselines, metrics, ablations, and reproducibility checks
+  - evidence or analysis explaining why the approach should work and when it should fail
+  - compute, deployment, robustness, safety, or data-quality constraints and falsification
+    tests

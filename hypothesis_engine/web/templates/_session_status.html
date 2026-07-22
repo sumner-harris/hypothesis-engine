@@ -1,0 +1,60 @@
+<section id="session-status-panel"
+         hx-get="/sessions/{{ session.id }}/status"
+         hx-trigger="every 5s"
+         hx-swap="outerHTML"
+         aria-live="polite">
+    <hgroup>
+        <h1>Session <code>{{ session.id[-12:] }}</code></h1>
+        <p><span class="status status-{{ session.status }}">{{ session.status }}</span></p>
+    </hgroup>
+
+    <div class="grid">
+        <article>
+            <header><strong>Budget</strong></header>
+            <p>${{ "%.2f"|format(session.budget_used_usd) }} / ${{ "%.2f"|format(session.budget_usd) }}
+            ({{ "%.0f"|format(100 * session.budget_used_usd / session.budget_usd if session.budget_usd > 0 else 0) }}%)</p>
+            <progress value="{{ session.budget_used_usd }}" max="{{ session.budget_usd }}"></progress>
+        </article>
+        <article>
+            <header><strong>Tokens</strong></header>
+            <p>{{ session.budget_used_tokens }} / {{ session.budget_tokens }}</p>
+            <progress value="{{ session.budget_used_tokens }}" max="{{ session.budget_tokens }}"></progress>
+        </article>
+        <article>
+            <header><strong>API calls</strong></header>
+            <p>{{ usage.n_calls if usage else 0 }} total</p>
+            {% if usage and usage.cache_read %}
+            <small>Cache reads: {{ usage.cache_read }} tokens</small>
+            {% endif %}
+        </article>
+        <article>
+            <header><strong>Citation texts</strong></header>
+            <p>{{ citation_text_stats.unique_texts if citation_text_stats else 0 }} unique citation/search sources</p>
+            {% if citation_text_stats and citation_text_stats.kb_chunks %}
+            <small>RAG KB: {{ citation_text_stats.kb_chunks }} text chunks{% if citation_text_stats.kb_seeded %} · seed loaded ({{ citation_text_stats.seed_kb_chunks }}){% endif %}</small>
+            {% endif %}
+            {% if citation_text_stats and citation_text_stats.total_chars %}
+            <small>{{ citation_text_stats.total_chars }} chars summarized/extracted</small>
+            {% endif %}
+            {% if citation_text_stats and citation_text_stats.pdfs_total %}
+            <small>
+                PDFs: {{ citation_text_stats.pdfs_total }} total ·
+                arXiv {{ citation_text_stats.pdfs_arxiv }} ·
+                bioRxiv {{ citation_text_stats.pdfs_biorxiv }} ·
+                ChemRxiv {{ citation_text_stats.pdfs_chemrxiv }} ·
+                Europe PMC {{ citation_text_stats.pdfs_europe_pmc }}
+                {% if citation_text_stats.pdfs_other %} · other {{ citation_text_stats.pdfs_other }}{% endif %}
+            </small>
+            {% endif %}
+        </article>
+    </div>
+
+    <div class="grid">
+        <button hx-post="/api/sessions/{{ session.id }}/pause" hx-swap="none">Pause</button>
+        <button hx-post="/api/sessions/{{ session.id }}/resume" hx-swap="none" class="secondary">Resume</button>
+        <button hx-post="/api/sessions/{{ session.id }}/abort" hx-swap="none" hx-confirm="Abort this session?" class="contrast">Abort</button>
+        {% if session.final_overview %}
+            <a href="/sessions/{{ session.id }}/overview" role="button">View final overview →</a>
+        {% endif %}
+    </div>
+</section>

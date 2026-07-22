@@ -1,0 +1,41 @@
+<section id="sessions-dashboard"
+         hx-get="/dashboard/sessions"
+         hx-trigger="every 5s"
+         hx-swap="outerHTML"
+         aria-live="polite">
+{% if not sessions %}
+<article>
+    <p>No sessions yet.</p>
+    <a href="/sessions/new" role="button">Start your first session →</a>
+</article>
+{% else %}
+<table>
+    <thead>
+    <tr>
+        <th>ID</th><th>Status</th><th>Goal</th>
+        <th style="text-align:right">Hyps</th><th style="text-align:right">Top Elo</th>
+        <th style="text-align:right">Spent</th><th>Updated</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for s in sessions %}
+    <tr>
+        <td><a href="/sessions/{{ s.id }}"><code>{{ s.id[-12:] }}</code></a></td>
+        <td>
+            <span class="status status-{{ s.status }}">{{ s.status }}</span>
+        </td>
+        <td style="max-width:32rem">{{ s.research_goal[:120] }}</td>
+        <td style="text-align:right">{{ s.n_hyps }}</td>
+        <td style="text-align:right">
+            {% if s.top_elo %}{{ "%.0f"|format(s.top_elo) }}{% else %}—{% endif %}
+        </td>
+        <td style="text-align:right">
+            ${{ "%.2f"|format(s.budget_used_usd) }} / ${{ "%.2f"|format(s.budget_usd) }}
+        </td>
+        <td><small>{{ s.updated_at[:19] }}</small></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+</section>

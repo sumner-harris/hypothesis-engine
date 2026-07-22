@@ -1,0 +1,106 @@
+# Modified from the original work.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hypothesis-engine"
+version = "0.1.0"
+description = "Multi-agent Hypothesis Engine for tournament-style hypothesis generation"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Hypothesis Engine contributors" }]
+keywords = ["ai", "agents", "research", "anthropic", "claude"]
+
+dependencies = [
+    # LLM clients (provider is selectable via [llm] provider = ...)
+    "anthropic>=0.40.0",
+    "openai>=1.40.0",
+    # Async stack
+    "aiosqlite>=0.20.0",
+    "httpx>=0.27.0",
+    # CLI + config
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.4.0",
+    "tomli>=2.0.1; python_version < '3.11'",
+    # Templates
+    "jinja2>=3.1.4",
+    # Vectors + embeddings
+    "faiss-cpu>=1.8.0",
+    "voyageai>=0.2.3",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.5.0",
+    # Optional RAG retrieval over fetched papers
+    "langchain==0.3.26",
+    "langchain-community==0.3.27",
+    "langchain-core==0.3.68",
+    "langchain-openai==0.3.7",
+    "rank-bm25>=0.2.2",
+    "tiktoken>=0.11.0",
+    "PyMuPDF>=1.26.3",
+    "requests>=2.32.0",
+    "pyyaml>=6.0.0",
+    "streamlit>=1.47.0",
+    "pandas>=2.2.3",
+    "openpyxl>=3.1.5",
+    "pycountry>=24.6.1",
+    # Web fetch + parsing
+    "trafilatura>=1.12.0",
+    "pypdf>=4.3.0",
+    # Logging + ids
+    "structlog>=24.4.0",
+    "python-ulid>=2.7.0",
+    # Web UI
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sse-starlette>=2.1.3",
+    "python-multipart>=0.0.12",
+    "markdown>=3.7",
+    "umap-learn>=0.5.7",
+    "numba>=0.60",
+    "llvmlite>=0.43",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-recording>=0.13.2",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+]
+# `openai` extra retained for compatibility with older configs; the SDK is
+# now in the default dependency set so the OpenAI provider works out of the
+# box.
+openai = ["openai>=1.40.0"]
+
+[project.scripts]
+hypothesis-engine = "hypothesis_engine.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hypothesis_engine"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501", "RUF002"]
+
+[tool.ruff.lint.per-file-ignores]
+"hypothesis_engine/cli.py" = ["B008"]                  # typer.Option/Argument as defaults
+"hypothesis_engine/tools/*.py" = ["RUF012"]            # ClassVar JSONSchema dicts read-only
+"hypothesis_engine/tools/**/*.py" = ["RUF012"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["hypothesis_engine/tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true

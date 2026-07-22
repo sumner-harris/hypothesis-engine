@@ -1,0 +1,56 @@
+id: exp:spectroscopy:xps-01
+version: placeholder-0.1
+name: X-ray photoelectron spectroscopy
+kind: experimental
+description: >-
+  X-ray photoelectron spectroscopy capability for surface-sensitive elemental
+  composition, chemical-state, and core-level electronic-structure analysis.
+domains:
+  - materials science
+  - surface science
+  - thin films
+methods:
+  - X-ray photoelectron spectroscopy
+  - survey spectroscopy
+  - high-resolution core-level spectroscopy
+inputs:
+  - vacuum-compatible solid specimen
+outputs:
+  - XPS survey spectrum
+  - high-resolution core-level spectrum
+  - binding-energy and peak-fit table
+  - surface elemental composition
+  - acquisition and calibration metadata
+tags:
+  - XPS
+  - surface chemistry
+  - chemical state
+  - elemental composition
+parameters:
+  - name: x_ray_source
+    description: X-ray anode, photon energy, and monochromator configuration.
+  - name: analysis_area
+    description: Requested lateral analysis area or spot size.
+    unit: um
+  - name: pass_energy
+    description: Analyzer pass energy used for survey or high-resolution acquisition.
+    unit: eV
+  - name: energy_step
+    description: Binding-energy increment between acquired points.
+    unit: eV
+  - name: takeoff_angle
+    description: Photoelectron takeoff angle relative to the documented reference plane.
+    unit: deg
+  - name: charge_neutralization
+    description: Whether charge compensation is used for insulating specimens.
+requirements:
+  - Replace with verified specimen size, mounting, vacuum compatibility, and handling requirements.
+constraints:
+  - Source configuration, detection limits, analysis area, depth profiling, and angle-resolved modes are not yet populated.
+safety_notes:
+  - Follow approved X-ray, vacuum, sample-handling, and contamination-control procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm instrument configuration, supported modes, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with instrument records and SOP identifiers.

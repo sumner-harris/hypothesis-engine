@@ -1,0 +1,55 @@
+id: exp:diffraction:xrd-01
+version: placeholder-0.1
+name: X-ray diffraction
+kind: experimental
+description: >-
+  X-ray diffraction capability for crystalline phase identification,
+  orientation analysis, lattice-spacing measurement, and structural comparison.
+domains:
+  - materials science
+  - crystallography
+  - thin films
+methods:
+  - X-ray diffraction
+inputs:
+  - crystalline powder, bulk solid, or thin-film specimen compatible with the instrument
+outputs:
+  - calibrated diffraction pattern
+  - peak position, width, and intensity table
+  - candidate phase assignments
+  - lattice-spacing or lattice-parameter estimates
+  - acquisition and calibration metadata
+tags:
+  - XRD
+  - diffraction
+  - crystallography
+  - phase identification
+parameters:
+  - name: measurement_geometry
+    description: Requested scan geometry and specimen configuration.
+  - name: x_ray_wavelength
+    description: X-ray wavelength used for diffraction.
+    unit: angstrom
+  - name: two_theta_minimum
+    description: Lower bound of the requested two-theta scan interval.
+    unit: deg
+  - name: two_theta_maximum
+    description: Upper bound of the requested two-theta scan interval.
+    unit: deg
+  - name: step_size
+    description: Angular increment between measurement points.
+    unit: deg
+  - name: dwell_time
+    description: Counting time per angular point or step.
+    unit: s
+requirements:
+  - Replace with verified specimen dimensions, mounting, quantity, flatness, and containment requirements.
+constraints:
+  - Source optics, supported geometries, angular range, resolution, and thin-film sensitivity are not yet populated.
+safety_notes:
+  - Follow approved X-ray, sample-mounting, and powder-handling procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm diffractometer optics, stages, geometries, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with instrument records and SOP identifiers.

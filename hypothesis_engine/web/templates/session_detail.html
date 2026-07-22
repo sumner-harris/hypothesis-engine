@@ -1,0 +1,175 @@
+{# Modified from the original work. #}
+{% extends "base.html" %}
+{% block title %}Session {{ session.id[-12:] }} — Hypothesis Engine{% endblock %}
+{% block content %}
+{% include "_session_status.html" %}
+
+<section class="session-prompt">
+    <h2>Session prompt</h2>
+    <h3>Research goal</h3>
+    <div class="session-prompt-text">{{ session.research_goal }}</div>
+
+    <h3>Additional preferences</h3>
+    {% if prompt_preferences %}
+        {% for preference in prompt_preferences %}
+        <article class="session-prompt-entry">
+            <div class="session-prompt-text">{{ preference.text }}</div>
+            {% if prompt_preferences|length > 1 %}
+            <footer><small>Submitted {{ preference.created_at.isoformat() }}</small></footer>
+            {% endif %}
+        </article>
+        {% endfor %}
+    {% else %}
+        <p><em>None provided.</em></p>
+    {% endif %}
+</section>
+
+<details>
+    <summary>Research plan</summary>
+    <pre>{{ session.research_plan.model_dump_json(indent=2) }}</pre>
+</details>
+
+<section>
+    <h2>Analysis report</h2>
+    <p>
+        <a role="button" href="/sessions/{{ session.id }}/analysis">View self-contained report</a>
+        <a role="button" class="secondary" href="/sessions/{{ session.id }}/analysis/download">Download complete bundle</a>
+    </p>
+</section>
+
+{% set workflow_event_url = "/api/sessions/" ~ session.id ~ "/events" %}
+{% set workflow_state_url = "/api/sessions/" ~ session.id ~ "/workflow" %}
+{% set workflow_log_id = "events-log" %}
+<section class="session-view-tabs" data-session-tabs>
+    <div class="session-tab-list" role="tablist" aria-label="Session views">
+        <button type="button" id="tab-workflow" role="tab" aria-selected="true"
+                aria-controls="session-view-workflow" data-tab-target="session-view-workflow">
+            Workflow
+        </button>
+        <button type="button" id="tab-hypotheses" role="tab" aria-selected="false"
+                aria-controls="session-view-hypotheses" data-tab-target="session-view-hypotheses">
+            Hypothesis clusters
+        </button>
+        <button type="button" id="tab-rag" role="tab" aria-selected="false"
+                aria-controls="session-view-rag" data-tab-target="session-view-rag">
+            RAG KB clusters
+        </button>
+    </div>
+    <div id="session-view-workflow" class="session-tab-panel active" role="tabpanel"
+         aria-labelledby="tab-workflow" data-tab-panel>
+        {% include "_workflow_diagram.html" %}
+    </div>
+    <div id="session-view-hypotheses" class="session-tab-panel" role="tabpanel"
+         aria-labelledby="tab-hypotheses" data-tab-panel hidden>
+        <section class="cluster-panel">
+            <div class="cluster-plot" data-cluster-plot
+                 data-cluster-title="Hypothesis clusters"
+                 data-cluster-url="/api/sessions/{{ session.id }}/clusters?view=hypotheses">
+                <div class="cluster-plot-toolbar">
+                    <h2>Hypothesis clusters</h2>
+                    <button type="button" class="secondary" data-cluster-refresh>Refresh</button>
+                </div>
+                <p class="cluster-plot-status" data-cluster-status>Loading cluster plot...</p>
+                <div class="cluster-plot-stage" data-cluster-stage></div>
+            </div>
+        </section>
+    </div>
+    <div id="session-view-rag" class="session-tab-panel" role="tabpanel"
+         aria-labelledby="tab-rag" data-tab-panel hidden>
+        <section class="cluster-panel">
+            <div class="cluster-plot" data-cluster-plot
+                 data-cluster-title="RAG KB clusters"
+                 data-cluster-url="/api/sessions/{{ session.id }}/clusters?view=rag">
+                <div class="cluster-plot-toolbar">
+                    <h2>RAG KB clusters</h2>
+                    <button type="button" class="secondary" data-cluster-refresh>Refresh</button>
+                </div>
+                <p class="cluster-plot-status" data-cluster-status>Loading cluster plot...</p>
+                <div class="cluster-plot-stage" data-cluster-stage></div>
+            </div>
+        </section>
+    </div>
+</section>
+
+{% include "_leaderboard.html" %}
+
+{% include "_matches.html" %}
+
+<section>
+    <h2>Feedback</h2>
+    <form method="POST" action="/api/sessions/{{ session.id }}/feedback"
+          hx-post="/api/sessions/{{ session.id }}/feedback" hx-swap="none">
+        <fieldset role="group">
+            <input type="text" name="text" placeholder="Add a directive, preference, or note" required>
+            <select name="kind">
+                <option value="directive">directive</option>
+                <option value="preference">preference</option>
+            </select>
+            <button type="submit">Send</button>
+        </fieldset>
+        <input type="hidden" name="target_id" value="">
+    </form>
+</section>
+
+<section>
+    <h3>Live events</h3>
+    <ul id="events-log" style="font-family:monospace;font-size:0.85em;max-height:14rem;overflow:auto"></ul>
+</section>
+
+<script>
+(function() {
+    function refreshLeaderboard() {
+        if (window.htmx) {
+            htmx.ajax("GET", "/sessions/{{ session.id }}/leaderboard", {
+                target: "#leaderboard-panel",
+                swap: "outerHTML"
+            });
+        }
+    }
+    function refreshMatches() {
+        if (window.htmx) {
+            htmx.ajax("GET", "/sessions/{{ session.id }}/matches", {
+                target: "#matches-panel",
+                swap: "outerHTML"
+            });
+        }
+    }
+    function maybeRefresh(name, data) {
+        const payload = data && data.payload ? data.payload : data;
+        const kind = payload && payload.kind;
+        const action = payload && payload.action;
+        const leaderboardKinds = new Set([
+            "hypothesis_created",
+            "review_completed",
+            "added_to_tournament",
+            "tournament_match_complete",
+        ]);
+        const matchKinds = new Set(["tournament_match_complete"]);
+        if (
+            name === "hypothesis_created" ||
+            name === "review_completed" ||
+            name === "match_complete" ||
+            name === "tournament_match_complete" ||
+            name === "session_done" ||
+            leaderboardKinds.has(kind) ||
+            (name === "task_completed" && action === "AddToTournament")
+        ) {
+            refreshLeaderboard();
+        }
+        if (
+            name === "match_complete" ||
+            name === "tournament_match_complete" ||
+            matchKinds.has(kind) ||
+            (name === "task_completed" && action === "RunTournamentBatch")
+        ) {
+            refreshMatches();
+        }
+    }
+    document.addEventListener("hypothesis-engine:event", event => {
+        maybeRefresh(event.detail.name, event.detail.data);
+    });
+})();
+</script>
+<script src="/static/cluster_plot.js"></script>
+<script src="/static/workflow.js"></script>
+{% endblock %}

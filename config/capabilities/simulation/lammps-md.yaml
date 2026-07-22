@@ -1,0 +1,60 @@
+id: sim:md:lammps-01
+version: placeholder-0.1
+name: LAMMPS molecular dynamics calculations
+kind: simulation
+description: >-
+  LAMMPS-based classical molecular dynamics workflows for atomistic structure,
+  dynamics, thermal response, mechanical response, and defect evolution.
+domains:
+  - computational materials science
+  - molecular dynamics
+  - atomistic simulation
+methods:
+  - classical molecular dynamics
+  - energy minimization
+  - thermal equilibration
+  - mechanical deformation
+  - defect dynamics
+inputs:
+  - atomic structure
+  - interatomic potential
+  - simulation protocol
+outputs:
+  - atomistic trajectory
+  - thermodynamic time series
+  - relaxed or evolved structure
+  - derived structural and transport quantities
+  - simulation provenance and convergence metadata
+tags:
+  - LAMMPS
+  - molecular dynamics
+  - defects
+  - atomistic simulation
+parameters:
+  - name: lammps_version
+    description: LAMMPS release or build identifier.
+  - name: interatomic_potential
+    description: Potential name, version, parameterization, and source.
+  - name: timestep
+    description: Molecular dynamics integration timestep.
+    unit: fs
+  - name: ensemble
+    description: Statistical ensemble and thermostat/barostat configuration.
+  - name: temperature
+    description: Simulation temperature or temperature schedule.
+    unit: K
+  - name: pressure
+    description: Applied pressure or stress condition.
+  - name: simulation_steps
+    description: Number of production integration steps.
+  - name: boundary_conditions
+    description: Periodic or nonperiodic boundary conditions by dimension.
+requirements:
+  - Replace with verified LAMMPS build, package, potential, scheduler, and storage requirements.
+constraints:
+  - Validated interatomic potentials, supported packages, system sizes, and compute limits are not yet populated.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm software build, potentials, workflows, and compute access.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with LAMMPS build, workflow, potential, and HPC records.

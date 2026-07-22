@@ -1,0 +1,59 @@
+id: exp:magnetometry:mpms-01
+version: placeholder-0.1
+name: Magnetic Property Measurement System
+kind: experimental
+description: >-
+  Magnetic Property Measurement System (MPMS) capability for high-sensitivity
+  magnetization and magnetic-susceptibility measurements under controlled
+  temperature and applied magnetic field.
+domains:
+  - materials science
+  - condensed matter physics
+  - magnetism
+methods:
+  - SQUID magnetometry
+  - DC magnetization measurement
+  - magnetic susceptibility measurement
+inputs:
+  - specimen mounted in a holder compatible with the MPMS sample space
+outputs:
+  - magnetic moment versus temperature dataset
+  - magnetic moment versus applied field dataset
+  - magnetic susceptibility dataset
+  - measurement sequence and instrument metadata
+tags:
+  - MPMS
+  - SQUID
+  - magnetometry
+  - magnetic susceptibility
+parameters:
+  - name: measurement_mode
+    description: Installed MPMS measurement option or protocol requested for the study.
+  - name: temperature
+    description: Measurement temperature or temperature setpoint sequence.
+    unit: K
+  - name: magnetic_field
+    description: Applied magnetic field or field setpoint sequence.
+    unit: T
+  - name: field_sweep_rate
+    description: Magnetic-field sweep rate when a continuous sweep is used.
+    unit: T/min
+  - name: ac_drive_amplitude
+    description: AC magnetic-field amplitude for a supported susceptibility measurement.
+    unit: Oe
+  - name: ac_drive_frequency
+    description: AC drive frequency for a supported susceptibility measurement.
+    unit: Hz
+  - name: sample_orientation
+    description: Specimen orientation relative to the applied magnetic field.
+requirements:
+  - Replace with verified holder, sample-size, background, mounting, mass, and training requirements.
+constraints:
+  - MPMS model, installed options, temperature and field ranges, sensitivity, and supported holders are not yet populated.
+safety_notes:
+  - Follow approved cryogenic, strong-magnetic-field, and sample-mounting procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm MPMS model, installed options, holders, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with instrument records and SOP identifiers.

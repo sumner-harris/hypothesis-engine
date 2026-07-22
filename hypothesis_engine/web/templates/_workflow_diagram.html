@@ -1,0 +1,61 @@
+<section class="workflow-panel">
+    <h2>Workflow</h2>
+    <div
+        id="workflow-diagram"
+        class="workflow-map"
+        data-workflow-diagram
+        data-events-url="{{ workflow_event_url }}"
+        data-workflow-url="{{ workflow_state_url }}"
+        data-log-id="{{ workflow_log_id|default('events-log') }}"
+        data-state='{{ workflow_state|tojson }}'>
+        <svg class="workflow-svg" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+                <marker id="workflow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+                    <path d="M 0 0 L 10 5 L 0 10 z"></path>
+                </marker>
+            </defs>
+            <path class="workflow-path" data-workflow-link-from="supervisor" data-workflow-link-to="generation" d="M 500 122 L 220 178"></path>
+            <path class="workflow-path" data-workflow-link-from="supervisor" data-workflow-link-to="reflection" d="M 500 122 L 560 176"></path>
+            <path class="workflow-path" data-workflow-link-from="supervisor" data-workflow-link-to="ranking" d="M 500 122 L 780 178"></path>
+
+            <path class="workflow-path" data-workflow-link-from="generation" data-workflow-link-to="reflection" data-workflow-link-active="reflection-generation" d="M 265 245 L 515 245"></path>
+            <path class="workflow-path workflow-path-literature" data-workflow-link-from="generation" data-workflow-link-to="literature_review" data-workflow-link-active="literature-review-source" d="M 220 290 L 220 380"></path>
+            <path class="workflow-path workflow-path-literature" data-workflow-link-from="reflection" data-workflow-link-to="literature_review" data-workflow-link-active="literature-review-source" d="M 535 290 C 450 360, 340 380, 265 405"></path>
+            <path class="workflow-path" data-workflow-link-from="reflection" data-workflow-link-to="ranking" data-workflow-link-active="source" d="M 625 245 L 695 245"></path>
+            <path class="workflow-path" data-workflow-link-from="ranking" data-workflow-link-to="proximity" d="M 805 245 L 895 245"></path>
+
+            <path class="workflow-path" data-workflow-link-from="proximity" data-workflow-link-to="ranking" data-workflow-link-active="source" d="M 890 300 C 825 360, 760 360, 730 300"></path>
+            <path class="workflow-path" data-workflow-link-from="ranking" data-workflow-link-to="evolution" d="M 740 295 C 690 350, 585 360, 515 390"></path>
+            <path class="workflow-path" data-workflow-link-from="metareview" data-workflow-link-to="evolution" data-workflow-link-active="source" d="M 860 430 L 625 430"></path>
+            <path class="workflow-path" data-workflow-link-from="evolution" data-workflow-link-to="reflection" data-workflow-link-active="reflection-evolution" d="M 500 390 C 470 335, 500 310, 545 292"></path>
+            <path class="workflow-path workflow-path-literature" data-workflow-link-from="evolution" data-workflow-link-to="literature_review" data-workflow-link-active="literature-review-source" d="M 380 430 L 265 430"></path>
+        </svg>
+
+        <div class="workflow-node workflow-node-supervisor" data-workflow-stage="supervisor">
+            <strong>Supervisor</strong>
+            <small>queue + scheduling</small>
+            <span>Claim - run - follow-up</span>
+        </div>
+
+        {% for stage in workflow_stages %}
+        <div class="workflow-node workflow-node-{{ stage.key }}" data-workflow-stage="{{ stage.key }}">
+            <strong>{{ stage.label }}</strong>
+            <small>{{ stage.caption }}</small>
+            <span data-workflow-count-for="{{ stage.key }}">Idle</span>
+        </div>
+        {% endfor %}
+
+        <div class="workflow-node workflow-node-literature_review" data-workflow-stage="literature_review">
+            <strong>Literature Review</strong>
+            <small>PDF selection</small>
+            <span data-workflow-count-for="literature_review">Idle</span>
+        </div>
+
+        <div class="workflow-label workflow-label-hyp" data-workflow-label="hyp">new hypotheses</div>
+        <div class="workflow-label workflow-label-selection" data-workflow-label="selection">search review</div>
+        <div class="workflow-label workflow-label-review" data-workflow-label="review">reviews</div>
+        <div class="workflow-label workflow-label-elo" data-workflow-label="elo">Elo loop</div>
+        <div class="workflow-label workflow-label-feedback" data-workflow-label="feedback">feedback</div>
+        <div class="workflow-label workflow-label-reentry" data-workflow-label="reentry">new hypotheses re-enter the cycle</div>
+    </div>
+</section>

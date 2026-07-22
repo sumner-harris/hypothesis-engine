@@ -1,0 +1,11 @@
+{# Modified from the original work. #}
+{% extends "base.html" %}
+{% block title %}Sessions — Hypothesis Engine{% endblock %}
+{% block content %}
+<hgroup>
+    <h1>Sessions</h1>
+    <p>Tournament-style hypothesis generation. Each session: goal → hypotheses → reviews → Elo tournament → research overview.</p>
+</hgroup>
+
+{% include "_sessions_table.html" %}
+{% endblock %}

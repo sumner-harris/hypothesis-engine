@@ -1,0 +1,60 @@
+id: exp:microscopy:stem-2d-01
+version: placeholder-0.1
+name: Scanning transmission electron microscopy for 2D materials
+kind: experimental
+description: >-
+  STEM capability for structural, defect, and compositional characterization
+  of electron-transparent two-dimensional material specimens.
+domains:
+  - materials science
+  - electron microscopy
+  - two-dimensional materials
+methods:
+  - scanning transmission electron microscopy
+  - HAADF-STEM
+  - annular bright-field STEM
+  - electron energy-loss spectroscopy
+  - energy-dispersive X-ray spectroscopy
+inputs:
+  - electron-transparent 2D material specimen on a compatible support
+outputs:
+  - calibrated STEM image
+  - atomic-resolution structural image
+  - spectroscopy or elemental map
+  - acquisition metadata
+tags:
+  - STEM
+  - defects
+  - atomic-resolution imaging
+  - spectroscopy
+parameters:
+  - name: accelerating_voltage
+    description: Electron accelerating voltage; add verified supported values.
+    unit: kV
+  - name: probe_current
+    description: Probe current used for acquisition.
+    unit: pA
+  - name: convergence_angle
+    description: Probe convergence semi-angle.
+    unit: mrad
+  - name: detector_geometry
+    description: Detector type and inner/outer collection angles.
+  - name: pixel_size
+    description: Calibrated specimen-space pixel size.
+    unit: pm
+  - name: dwell_time
+    description: Pixel dwell time.
+    unit: us
+  - name: frame_count
+    description: Number of frames acquired for registration or dose fractionation.
+requirements:
+  - Replace with verified specimen preparation, grid, cleanliness, and transfer requirements.
+constraints:
+  - Beam-damage limits, supported holders, detector configurations, and resolution are not yet populated.
+safety_notes:
+  - Follow approved electron-microscopy, vacuum, specimen, and holder procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm microscope configuration, detectors, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with microscope records and SOP identifiers.

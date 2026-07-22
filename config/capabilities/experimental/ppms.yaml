@@ -1,0 +1,58 @@
+id: exp:physical-properties:ppms-01
+version: placeholder-0.1
+name: Physical Property Measurement System
+kind: experimental
+description: >-
+  Physical Property Measurement System (PPMS) capability for controlled
+  temperature- and magnetic-field-dependent measurements using installed modules.
+domains:
+  - materials science
+  - condensed matter physics
+  - electronic transport
+methods:
+  - temperature-dependent physical property measurement
+  - electrical transport measurement
+  - magnetotransport measurement
+inputs:
+  - mounted and, when required, electrically contacted specimen compatible with a PPMS puck or holder
+outputs:
+  - temperature-dependent physical-property dataset
+  - field-dependent physical-property dataset
+  - electrical transport or magnetotransport dataset
+  - measurement sequence and instrument metadata
+tags:
+  - PPMS
+  - physical properties
+  - electrical transport
+  - magnetotransport
+parameters:
+  - name: measurement_mode
+    description: Installed PPMS option or measurement protocol requested for the study.
+  - name: temperature
+    description: Measurement temperature or temperature setpoint sequence.
+    unit: K
+  - name: magnetic_field
+    description: Applied magnetic field or field setpoint sequence.
+    unit: T
+  - name: field_sweep_rate
+    description: Magnetic-field sweep rate when a continuous sweep is used.
+    unit: T/min
+  - name: excitation_current
+    description: Electrical excitation current used for a supported transport measurement.
+    unit: A
+  - name: excitation_frequency
+    description: Excitation frequency used by a supported AC measurement option.
+    unit: Hz
+  - name: sample_orientation
+    description: Specimen orientation relative to the applied magnetic field.
+requirements:
+  - Replace with verified puck, wiring, contact, sample-size, mounting, and training requirements.
+constraints:
+  - Installed modules, temperature and field ranges, wiring channels, cooling limits, and supported holders are not yet populated.
+safety_notes:
+  - Follow approved cryogenic, magnetic-field, electrical, and sample-mounting procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm PPMS model, installed options, holders, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with instrument records and SOP identifiers.

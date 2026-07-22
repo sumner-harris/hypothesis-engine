@@ -1,0 +1,197 @@
+# Initial literature-discovery lenses for microbiology and microbial biotechnology.
+# Point [generation].discovery_profiles at this file to use these profiles.
+required_work_packages:
+  - id: biological_system
+    label: Biological system / context
+    objective: Define the organism, strain, enzyme, community, gene, pathway, or ecological context needed to test the claim.
+    expected_outputs:
+      - strains, isolates, enzymes, communities, or genetic constructs
+      - growth, culture, environmental, or host-context conditions
+      - rationale for system choice and relevant comparators
+  - id: assay_phenotype
+    label: Assay / phenotype
+    objective: Define measurements that distinguish true biological activity from artifacts or indirect effects.
+    expected_outputs:
+      - assays, culture conditions, imaging, omics, product analysis, or phenotype readouts
+      - time courses, dose responses, and replicate design
+      - media, contamination, and negative-control checks
+  - id: comparative_omics_evidence
+    label: Comparative / omics evidence
+    objective: Define genomic, transcriptomic, proteomic, metabolomic, phylogenetic, or comparative evidence that constrains the mechanism.
+    expected_outputs:
+      - sequence, gene-cluster, expression, metabolite, or phylogenetic analyses
+      - comparative strain or community evidence
+      - predicted markers that should covary with the phenotype
+  - id: intervention_engineering
+    label: Intervention / engineering route
+    objective: Define the perturbation, enrichment, engineering, selection, or process route that tests or improves the biological activity.
+    expected_outputs:
+      - knockouts, overexpression, directed evolution, enrichment, co-culture, bioreactor, or perturbation plan
+      - controllable variables and implementation constraints
+      - product, fitness, or activity tradeoffs
+  - id: biosafety_controls
+    label: Biosafety / contamination / failure criteria
+    objective: Define risks, safeguards, and failure outcomes that bound feasibility and responsible use.
+    expected_outputs:
+      - contamination, pathogenicity, horizontal-transfer, toxicity, escape, or ecological-risk controls
+      - reproducibility and artifact checks
+      - explicit null outcomes and stop criteria
+
+profiles:
+- id: microbial_mechanism
+  label: Microbial mechanisms and pathways
+  objective: Focus on causal microbial pathways, enzymes, genes, regulatory networks, metabolic
+    routes, ecological interactions, and mechanistic explanations for the target phenotype.
+  search_guidance:
+  - Use mechanism-oriented terms such as pathway, enzyme, gene cluster, regulator, operon,
+    secretion system, metabolism, active site, transport, quorum sensing, or stress response
+    as appropriate.
+  - Prioritize papers that connect molecular or cellular mechanisms to observable microbial
+    behavior.
+  avoid_overfocus: Do not spend most searches on community surveys or broad associations unless
+    they identify a plausible causal mechanism.
+  suggested_query_angles:
+  - enzymes, genes, and pathways
+  - regulatory networks and stress responses
+  - causal links between genotype and phenotype
+  primary_driver_guidance: Make the microbial mechanism or pathway the central contribution,
+    then specify strains, assays, engineering routes, comparative evidence, and failure controls
+    needed to validate it.
+  required_study_elements:
+  - primary microbial mechanism, ecology, assay, engineering, genomics, or biosafety claim
+    led by this lens
+  - organism, strain, enzyme, community, or genetic context needed to test the claim
+  - assay, phenotype, omics, imaging, culture, or product-analysis validation plan
+  - intervention, perturbation, enrichment, engineering, or comparative evidence needed to
+    support the study
+  - contamination, reproducibility, biosafety, ecological, or negative-control failure modes
+- id: strains_ecology
+  label: Strains, communities, and ecology
+  objective: Focus on organism choice, strain variation, consortia, community interactions,
+    environmental context, niches, competition, syntrophy, and ecological constraints.
+  search_guidance:
+  - Use ecology-oriented terms such as strain, isolate, consortium, microbiome, niche, syntrophy,
+    competition, biofilm, host association, environmental gradient, or community assembly.
+  - Look for variation across strains, habitats, or communities that could explain when the
+    hypothesis succeeds or fails.
+  avoid_overfocus: Do not focus only on purified enzymes or single genes unless strain or
+    community context is also relevant.
+  suggested_query_angles:
+  - strain variation and isolate comparisons
+  - consortia, syntrophy, and community interactions
+  - environmental niches and context dependence
+  primary_driver_guidance: Make strain variation, consortia, or ecological context the central
+    driver, then specify mechanism, assays, intervention routes, comparative evidence, and
+    risks.
+  required_study_elements:
+  - primary microbial mechanism, ecology, assay, engineering, genomics, or biosafety claim
+    led by this lens
+  - organism, strain, enzyme, community, or genetic context needed to test the claim
+  - assay, phenotype, omics, imaging, culture, or product-analysis validation plan
+  - intervention, perturbation, enrichment, engineering, or comparative evidence needed to
+    support the study
+  - contamination, reproducibility, biosafety, ecological, or negative-control failure modes
+- id: assays_phenotyping
+  label: Assays and phenotyping
+  objective: Focus on experimental readouts, culture conditions, phenotyping assays, controls,
+    product analysis, omics measurements, imaging, and validation workflows.
+  search_guidance:
+  - Use validation-oriented terms such as assay, phenotype, screening, culture condition,
+    growth curve, metabolomics, proteomics, transcriptomics, microscopy, isotope tracing,
+    product distribution, or controls.
+  - Prioritize papers that distinguish true biological activity from artifacts, contamination,
+    media effects, or indirect correlations.
+  avoid_overfocus: Do not spend most searches on mechanism unless the paper also provides
+    a measurable assay or falsification strategy.
+  suggested_query_angles:
+  - assays, controls, and readouts
+  - culture conditions and phenotyping
+  - omics, imaging, and product analysis
+  primary_driver_guidance: Make the assay or phenotype readout the central driver, then specify
+    the biological mechanism, strains, perturbations, comparative evidence, and controls.
+  required_study_elements:
+  - primary microbial mechanism, ecology, assay, engineering, genomics, or biosafety claim
+    led by this lens
+  - organism, strain, enzyme, community, or genetic context needed to test the claim
+  - assay, phenotype, omics, imaging, culture, or product-analysis validation plan
+  - intervention, perturbation, enrichment, engineering, or comparative evidence needed to
+    support the study
+  - contamination, reproducibility, biosafety, ecological, or negative-control failure modes
+- id: engineering_intervention
+  label: Engineering and intervention routes
+  objective: Focus on how the microbial system could be engineered, selected, enriched, delivered,
+    scaled, or integrated into a useful workflow.
+  search_guidance:
+  - Use intervention terms such as adaptive evolution, strain engineering, genome editing,
+    pathway engineering, directed evolution, enrichment, bioreactor, immobilization, co-culture,
+    or process optimization.
+  - Look for controllable knobs and implementation constraints that turn a microbial observation
+    into a practical intervention.
+  avoid_overfocus: Do not duplicate a pure mechanism survey; emphasize routes for creating,
+    improving, or deploying the activity.
+  suggested_query_angles:
+  - strain and pathway engineering
+  - enrichment, selection, and directed evolution
+  - bioprocess, co-culture, and scale-up routes
+  primary_driver_guidance: Make the engineering or intervention route the central driver,
+    then specify mechanism, organism choice, assays, genomics evidence, and biosafety constraints.
+  required_study_elements:
+  - primary microbial mechanism, ecology, assay, engineering, genomics, or biosafety claim
+    led by this lens
+  - organism, strain, enzyme, community, or genetic context needed to test the claim
+  - assay, phenotype, omics, imaging, culture, or product-analysis validation plan
+  - intervention, perturbation, enrichment, engineering, or comparative evidence needed to
+    support the study
+  - contamination, reproducibility, biosafety, ecological, or negative-control failure modes
+- id: genomics_evolution
+  label: Genomics, evolution, and comparative evidence
+  objective: Focus on comparative genomics, phylogeny, horizontal gene transfer, evolutionary
+    conservation, genomic context, sequence-function links, and database-scale evidence.
+  search_guidance:
+  - Use comparative terms such as genome, metagenome, phylogeny, ortholog, homolog, gene cluster,
+    horizontal gene transfer, pangenome, conservation, sequence-function, or hidden Markov
+    model.
+  - Prioritize evidence that shows whether a mechanism is rare, conserved, recently transferred,
+    or predictable from sequence context.
+  avoid_overfocus: Do not rely only on wet-lab reports when comparative sequence evidence
+    could constrain the hypothesis.
+  suggested_query_angles:
+  - comparative genomics and phylogeny
+  - gene clusters and horizontal transfer
+  - sequence-function relationships
+  primary_driver_guidance: Make comparative genomics or evolutionary evidence the central
+    driver, then specify mechanism, strains, assays, engineering implications, and limits.
+  required_study_elements:
+  - primary microbial mechanism, ecology, assay, engineering, genomics, or biosafety claim
+    led by this lens
+  - organism, strain, enzyme, community, or genetic context needed to test the claim
+  - assay, phenotype, omics, imaging, culture, or product-analysis validation plan
+  - intervention, perturbation, enrichment, engineering, or comparative evidence needed to
+    support the study
+  - contamination, reproducibility, biosafety, ecological, or negative-control failure modes
+- id: biosafety_limits
+  label: Biosafety, contamination, and failure modes
+  objective: Focus on risks and constraints including contamination, reproducibility, pathogenicity,
+    horizontal gene transfer, ecological escape, toxicity, resistance, media artifacts, and
+    null or negative results.
+  search_guidance:
+  - Use constraint terms such as contamination, artifact, reproducibility, pathogenicity,
+    biosafety, toxicity, resistance, horizontal transfer, escape, inhibition, null result,
+    or failure.
+  - Treat negative or weak evidence as useful when it bounds feasibility or reveals confounders.
+  avoid_overfocus: Do not only collect supportive reports; deliberately search for evidence
+    that would break or constrain the idea.
+  suggested_query_angles:
+  - contamination, artifacts, and reproducibility
+  - biosafety and ecological risks
+  - negative controls and failure modes
+  primary_driver_guidance: Make biosafety, contamination, or failure modes the central driver,
+    then specify mechanism, strains, assays, engineering safeguards, and negative controls.
+  required_study_elements:
+  - primary microbial mechanism, ecology, assay, engineering, genomics, or biosafety claim
+    led by this lens
+  - organism, strain, enzyme, community, or genetic context needed to test the claim
+  - assay, phenotype, omics, imaging, culture, or product-analysis validation plan
+  - intervention, perturbation, enrichment, engineering, or comparative evidence needed to
+    support the study
+  - contamination, reproducibility, biosafety, ecological, or negative-control failure modes

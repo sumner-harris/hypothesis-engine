@@ -1,0 +1,63 @@
+id: sim:dft:vasp-01
+version: placeholder-0.1
+name: VASP density functional theory calculations
+kind: simulation
+description: >-
+  VASP-based plane-wave density functional theory workflows for structure,
+  energy, electronic-property, and defect calculations.
+domains:
+  - computational materials science
+  - electronic structure
+  - two-dimensional materials
+methods:
+  - density functional theory
+  - structural relaxation
+  - electronic band structure
+  - density of states
+  - defect formation energy
+inputs:
+  - atomic structure
+  - chemical composition
+  - calculation specification
+outputs:
+  - relaxed structure
+  - total energy
+  - forces and stress
+  - electronic band structure
+  - density of states
+  - calculation provenance and convergence metadata
+tags:
+  - VASP
+  - DFT
+  - defects
+  - electronic structure
+parameters:
+  - name: exchange_correlation_functional
+    description: Exchange-correlation approximation selected for the calculation.
+  - name: pseudopotential_set
+    description: VASP PAW dataset or pseudopotential release.
+  - name: plane_wave_cutoff
+    description: Plane-wave energy cutoff.
+    unit: eV
+  - name: k_point_sampling
+    description: K-point mesh or reciprocal-space sampling density.
+  - name: electronic_convergence
+    description: Electronic self-consistency threshold.
+    unit: eV
+  - name: ionic_convergence
+    description: Ionic relaxation force threshold.
+    unit: eV/angstrom
+  - name: vacuum_thickness
+    description: Vacuum separation for slab or 2D calculations.
+    unit: angstrom
+  - name: spin_orbit_coupling
+    description: Whether spin-orbit coupling is enabled.
+requirements:
+  - Replace with verified VASP licensing, executable version, pseudopotential, scheduler, and storage requirements.
+constraints:
+  - Supported calculation sizes, methods, queues, and compute limits are not yet populated.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm license, software build, workflows, and compute access.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with VASP license, build, workflow, and HPC records.

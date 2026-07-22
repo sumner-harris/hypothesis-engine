@@ -1,0 +1,80 @@
+id: auto-pld-synthesis
+version: 1.0.0
+name: Auto-PLD
+kind: experimental
+description: >-
+  Autonomous pulsed laser deposition for thin-film growth with
+  in situ Raman spectroscopy, laser reflectivity, and time-resolved ICCD imaging of the ablation plume.
+  Substrate exchange up to 10 samples without human intervention, two PLD target can be ablated separately or simultaneously.
+domains:
+  - materials science
+  - thin films
+  - two-dimensional materials
+  - complex oxides
+  - physics
+methods:
+  - pulsed laser deposition
+  - in situ Raman spectroscopy
+  - ICCD plume imaging
+  - in situ laser reflectivity
+inputs:
+  - PLD targets
+  - growth substrate
+outputs:
+  - deposited thin film
+  - synthesis metadata
+  - in situ Raman spectra
+  - ICCD plume images
+  - time-resolved in situ laser reflectivity
+tags:
+  - PLD
+  - Raman
+  - plume diagnostics
+  - synthesis
+parameters:
+  - name: laser_energy_1
+    description: Laser energy on target 1
+    unit: mJ
+    minimum: 0
+    maximum: 60.0
+  - name: laser_energy_2
+    description: Laser ennergy on target 2
+    unit: mJ
+    minimum: 0.0
+    maximum: 120.0
+  - name: pulse_repetition_rate
+    description: Laser pulse repetition rate; same for both targets.
+    unit: Hz
+    minimum: 0.1
+    maximum: 20.0
+  - name: substrate_temperature
+    description: Substrate temperature during growth
+    unit: degC
+    minimum: 150
+    maximum: 890
+  - name: chamber_pressure
+    description: Chamber pressure during growth
+    unit: mTorr
+    minimum: 1e-6
+    maximum: 950
+  - name: process_gas
+    description: Gas composition used during deposition.
+  - name: raman_integration_time
+    description: Raman acquisition integration time.
+    unit: s
+  - name: iccd_gate_delay
+    description: ICCD delay relative to the laser pulse.
+    unit: ns
+  - name: iccd_gate_width
+    description: ICCD gate width used for plume imaging.
+    unit: ns
+requirements:
+  - Substrate size must be <10x10 mm in size
+  - PLD targets must be 1 inch diameter, <=0.25 inch diameter
+safety_notes:
+  - Follow approved laser, vacuum, high-voltage, gas, and target-handling procedures.
+availability:
+  status: limited
+  notes: Placeholder record; confirm configuration, access, and scheduling.
+owner: harrissb@ornl.gov
+provenance: Sumner Harris

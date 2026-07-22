@@ -1,0 +1,60 @@
+id: exp:spectroscopy:micro-raman-01
+version: placeholder-0.1
+name: Micro-Raman spectroscopy
+kind: experimental
+description: >-
+  Confocal micro-Raman spectroscopy capability for localized vibrational
+  spectra, point measurements, line scans, and spatial Raman mapping.
+domains:
+  - materials science
+  - vibrational spectroscopy
+  - thin films
+  - two-dimensional materials
+methods:
+  - micro-Raman spectroscopy
+  - Raman spectral mapping
+  - Raman line scanning
+inputs:
+  - optically accessible solid specimen
+outputs:
+  - calibrated Raman spectrum
+  - Raman peak position, width, and intensity table
+  - Raman map or line-scan dataset
+  - acquisition and calibration metadata
+tags:
+  - Raman
+  - micro-Raman
+  - micro Raman
+  - vibrational spectroscopy
+  - spectral mapping
+parameters:
+  - name: excitation_wavelength
+    description: Raman excitation laser wavelength.
+    unit: nm
+  - name: laser_power
+    description: Laser power at the specimen or documented instrument reference point.
+    unit: mW
+  - name: objective_magnification
+    description: Microscope objective magnification used for acquisition.
+  - name: spectral_window
+    description: Requested Raman-shift interval for acquisition.
+    unit: cm^-1
+  - name: integration_time
+    description: Detector integration time per acquired spectrum.
+    unit: s
+  - name: accumulation_count
+    description: Number of spectra accumulated at each measurement position.
+  - name: mapping_step
+    description: Spatial step between spectra in a line scan or map.
+    unit: um
+requirements:
+  - Replace with verified specimen size, substrate, focus, reflectivity, and laser-damage requirements.
+constraints:
+  - Excitation wavelengths, gratings, spectral resolution, mapping area, and environmental stages are not yet populated.
+safety_notes:
+  - Follow approved laser-safety and sample-handling procedures.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm lasers, optics, gratings, detectors, access, and scheduling.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with instrument records and SOP identifiers.

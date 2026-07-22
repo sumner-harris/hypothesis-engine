@@ -1,0 +1,26 @@
+{# Modified from the original work. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Hypothesis Engine{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<nav class="container-fluid">
+    <ul>
+        <li><strong><a href="/" style="text-decoration:none">Hypothesis Engine</a></strong></li>
+    </ul>
+    <ul>
+        <li><a href="/sessions/new" role="button">New session</a></li>
+    </ul>
+</nav>
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

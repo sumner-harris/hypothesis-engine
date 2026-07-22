@@ -1,0 +1,22 @@
+<section id="matches-panel"
+         hx-get="/sessions/{{ session.id }}/matches"
+         hx-trigger="every 5s"
+         hx-swap="outerHTML"
+         aria-live="polite">
+    <h2>Recent matches</h2>
+    {% if not recent_matches %}
+    <p><em>No tournament matches yet.</em></p>
+    {% else %}
+    <ul id="matches-feed">
+    {% for m in recent_matches %}
+        <li><small>{{ m.created_at[11:19] }}</small>
+            <code>{{ m.hyp_a[-8:] }}</code> vs <code>{{ m.hyp_b[-8:] }}</code> ·
+            mode <code>{{ m.mode }}</code> · winner <strong>{{ m.winner or "?" }}</strong>
+            {% if m.elo_a_after %}
+            → {{ "%.0f"|format(m.elo_a_after) }} / {{ "%.0f"|format(m.elo_b_after) }}
+            {% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+</section>

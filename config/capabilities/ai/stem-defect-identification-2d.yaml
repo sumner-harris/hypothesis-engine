@@ -1,0 +1,55 @@
+id: ai:stem:defect-identification-2d-01
+version: placeholder-0.1
+name: AI defect identification in STEM images of 2D materials
+kind: ai
+description: >-
+  AI model or pipeline for identifying, localizing, classifying, and
+  quantifying atomic-scale defects in STEM images of two-dimensional materials.
+domains:
+  - materials science
+  - computer vision
+  - electron microscopy
+  - two-dimensional materials
+methods:
+  - image preprocessing
+  - defect detection
+  - semantic or instance segmentation
+  - defect classification
+  - uncertainty estimation
+inputs:
+  - calibrated STEM image
+  - acquisition metadata
+outputs:
+  - defect coordinates
+  - defect class labels
+  - segmentation or detection mask
+  - confidence or uncertainty values
+  - defect density summary
+tags:
+  - AI
+  - STEM
+  - 2D materials
+  - defect identification
+parameters:
+  - name: model_artifact_version
+    description: Immutable model checkpoint, package, or container identifier.
+  - name: supported_imaging_modes
+    description: STEM detector modes and contrast types supported by the model.
+  - name: supported_materials
+    description: Material systems represented in training and validation.
+  - name: input_pixel_size
+    description: Calibrated specimen-space pixel size expected by the model.
+    unit: pm
+  - name: confidence_threshold
+    description: Threshold used to accept reported detections or classifications.
+  - name: inference_device
+    description: Supported CPU, GPU, or accelerator environment.
+requirements:
+  - Replace with verified preprocessing, calibration, model artifact, runtime, and input-format requirements.
+constraints:
+  - Training domain, validated defect classes, performance metrics, and out-of-distribution behavior are not yet populated.
+availability:
+  status: unknown
+  notes: Placeholder record; confirm model artifact, runtime, validation, and access.
+owner: TBD
+provenance: Placeholder requested for local inventory; replace with model card, repository, commit, and validation report.

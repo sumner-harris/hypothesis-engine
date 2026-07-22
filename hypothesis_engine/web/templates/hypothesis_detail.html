@@ -1,0 +1,67 @@
+{# Modified from the original work. #}
+{% extends "base.html" %}
+{% block title %}Hypothesis {{ h.id }} — Hypothesis Engine{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ul>
+        <li><a href="/">Sessions</a></li>
+        <li><a href="/sessions/{{ session.id }}">{{ session.id[-12:] }}</a></li>
+        <li>{{ h.id }}</li>
+    </ul>
+</nav>
+<hgroup>
+    <h1>{{ h.title or h.id }}</h1>
+    <p>
+        <code>{{ h.id }}</code> ·
+        Elo {% if h.elo %}{{ "%.0f"|format(h.elo) }}{% else %}—{% endif %} ·
+        State <span class="status status-{{ h.state }}">{{ h.state }}</span> ·
+        Strategy <code>{{ h.strategy }}</code> ·
+        Matches {{ h.matches_played }}
+        {% if h.parent_ids %} · Parents: {% for p in h.parent_ids %}<code>{{ p[-8:] }}</code>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+    </p>
+</hgroup>
+
+<section class="math-render-content" data-render-math>
+    {{ full_text_html | safe }}
+</section>
+
+{% if citations_html %}
+<section class="hypothesis-citations math-render-content" data-render-math>
+    {{ citations_html | safe }}
+</section>
+{% endif %}
+
+<section>
+    <h2>Reviews ({{ reviews|length }})</h2>
+    {% for r in reviews %}
+    <article>
+        <header>
+            <strong>{{ r.kind }}</strong> · verdict <code>{{ r.verdict or "?" }}</code> ·
+            n {{ r.scores.novelty }} c {{ r.scores.correctness }} t {{ r.scores.testability }}
+        </header>
+        <pre style="white-space:pre-wrap">{{ r.body }}</pre>
+    </article>
+    {% endfor %}
+</section>
+
+<section>
+    <h3>Feedback for this hypothesis</h3>
+    <form method="POST" action="/api/sessions/{{ session.id }}/feedback"
+          hx-post="/api/sessions/{{ session.id }}/feedback" hx-swap="none">
+        <input type="hidden" name="target_id" value="{{ h.id }}">
+        <fieldset role="group">
+            <input type="text" name="text" placeholder="Reason (e.g. pin: this is promising)" required>
+            <select name="kind">
+                <option value="pin">pin</option>
+                <option value="rejection">reject</option>
+                <option value="directive">directive</option>
+            </select>
+            <button type="submit">Send</button>
+        </fieldset>
+    </form>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/overview_math.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+{% endblock %}

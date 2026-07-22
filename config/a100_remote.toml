@@ -1,0 +1,271 @@
+# Hypothesis Engine — default configuration
+# User overrides: ~/.hypothesis-engine/config.toml or ./hypothesis-engine.toml
+# Secrets: env vars only (ANTHROPIC_API_KEY, VOYAGE_API_KEY, TAVILY_API_KEY, ...)
+
+[run]
+concurrency = 18
+initial_generations = 18
+max_ideas = 100
+# Legacy estimate/display knob; individual match caps are disabled.
+max_matches_per_idea = 0
+wall_clock_seconds = 28800           # 8h default
+budget_tokens = 100_000_000_000
+budget_usd = 1_000_000.0
+
+[storage]
+data_dir = "./data"
+
+[science_skills]
+path = "./vendor/science-skills"
+pinned_commit = ""                   # set after first clone
+
+[embeddings]
+provider = "openai_compatible"       # voyage | openai | openai_compatible | hash
+model = "sfr-embedding-mistral"
+dim = 4096
+base_url = "http://localhost:8001/v1"
+
+[vectors]
+backend = "faiss"
+dedup_cosine_threshold = 0.970
+cluster_threshold = 0.08
+full_recluster_every_matches = 10
+
+[ranking]
+k_factor_new = 64
+k_factor_warm = 32
+elo_initial = 1200
+elo_logistic_scale = 150.0
+debate_when_matches_lt = 5
+debate_when_elo_delta_lt = 100
+# Completion caps are independent of the model context window. Ranking debate
+# must have enough output budget to deliberate and still emit `better idea: N`.
+pairwise_max_output_tokens = 8192
+debate_max_output_tokens = 12288
+verdict_retry_max_output_tokens = 1024
+# Prompt-side budgets reduce verbosity bias in ranking comparisons.
+# Set to -1 to keep the full text untrimmed.
+prompt_hypothesis_max_chars = -1
+prompt_review_max_chars = -1
+prompt_side_max_chars = -1
+batch_below_decile = true
+batch_submit_every_seconds = 1800    # 30 min
+# Keep ranking workers busy while the pool is below the evolution maturity gate.
+# Pause closed-pool ranking once a small tournament is warm and slower
+# generation/reflection/evolution work is still feeding new candidates.
+small_pool_backlog_size = 6
+small_pool_backlog_match_cap = 5
+idle_parallel_tasks = 18
+# Best-of-three pair contests; Elo is applied only to the resolved pair winner.
+pair_max_matches = 3
+pair_wins_to_close = 2
+p_new = 0.55
+p_close = 0.30
+p_random = 0.15
+
+[reflection]
+# Main review output plus compact forced-tool recovery calls if the model
+# finishes without a complete `record_review` payload. Recovery retries double
+# the output cap each time, bounded by review_recovery_max_output_tokens_cap.
+review_max_output_tokens = 8192
+review_recovery_max_output_tokens = 2048
+review_recovery_max_attempts = 4
+review_recovery_token_multiplier = 2
+review_recovery_max_output_tokens_cap = 16384
+
+[generation]
+hypothesis_max_output_tokens = 8192
+hypothesis_recovery_max_output_tokens = 4096
+hypothesis_recovery_max_attempts = 3
+hypothesis_recovery_token_multiplier = 2
+hypothesis_recovery_max_output_tokens_cap = 16384
+dedup_replacement_attempts = 2
+
+[termination]
+elo_stability_k = 10                 # top-K tracked
+elo_stability_n = 5                  # snapshots compared
+elo_stability_eps = 25.0
+match_snapshot_every = 25
+# Stop by Elo stability only after the configured idea cap is reached.
+min_ideas_before_stable = 100
+min_matches_before_stable = 0
+
+[evolution]
+# Minimum number of mature hypotheses before the supervisor schedules an
+# evolution pass. A mature hypothesis has at least mature_matches completed
+# tournament matches. These gates keep ranking from injecting new ideas on
+# every idle scheduler pass.
+min_mature = 3
+mature_matches = 8
+min_tournament_matches = 100
+min_matches_between_batches = 100
+require_rank_stability = true
+rank_stability_n = 3
+rank_stability_eps = 50.0
+rank_stability_min_ideas = 0
+rank_stability_min_matches = 100
+# How many top hypotheses to consider in each evolution task.
+top_k = 12
+# How many evolution tasks to enqueue per idle pass once enough hypotheses are
+# mature. Each task still runs its strategy calls concurrently.
+idle_parallel_tasks = 4
+# Evolution strategy calls are run concurrently; each strategy has enough
+# output room to emit record_hypothesis, plus compact forced-tool recovery.
+hypothesis_max_output_tokens = 8192
+hypothesis_recovery_max_output_tokens = 4096
+hypothesis_recovery_max_attempts = 3
+hypothesis_recovery_token_multiplier = 2
+hypothesis_recovery_max_output_tokens_cap = 16384
+dedup_replacement_attempts = 2
+
+[budget_shares]
+generation = 0.20
+reflection = 0.20
+ranking    = 0.25
+evolution  = 0.15
+metareview = 0.10
+proximity  = 0.02
+reserve    = 0.08
+
+[models]
+parse_goal          = "gemma-4-31b-it-nvfp4"
+generation          = "gemma-4-31b-it-nvfp4"
+reflection          = "gemma-4-31b-it-nvfp4"
+evolution           = "gemma-4-31b-it-nvfp4"
+ranking_pairwise    = "gemma-4-31b-it-nvfp4"
+ranking_debate      = "gemma-4-31b-it-nvfp4"
+ranking_priority    = "gemma-4-31b-it-nvfp4"
+metareview_feedback = "gemma-4-31b-it-nvfp4"
+metareview_final    = "gemma-4-31b-it-nvfp4"
+classifier          = "gemma-4-31b-it-nvfp4"
+judge               = "gemma-4-31b-it-nvfp4"
+literature_review   = "gemma-4-31b-it-nvfp4"
+
+[thinking]
+# per agent.mode budgets; 0 = disabled
+generation_literature   = 4000
+generation_debate       = 8000
+reflection_full         = 8000
+reflection_verification = 12000
+reflection_observation  = 6000
+ranking_pairwise        = 4000
+ranking_debate          = 8000
+evolution_combine       = 6000
+evolution_out_of_box    = 6000
+evolution_feasibility   = 8000
+evolution_simplify      = 8000
+metareview_feedback     = 8000
+metareview_final        = 16000
+
+[tool_loop]
+generation_max_iters = 24
+reflection_max_iters = 16
+ranking_max_iters    = 8
+evolution_max_iters  = 14
+metareview_max_iters = 20
+parallel_cap         = 8
+tool_timeout_seconds = 300
+
+[retry]
+# Anthropic API
+max_attempts_429 = 6
+max_attempts_529 = 8
+max_attempts_5xx = 5
+max_attempts_timeout = 3
+base_ms = 1000
+cap_ms = 60_000
+per_call_timeout_seconds = 300
+per_call_timeout_thinking_seconds = 600
+
+[lease]
+default_seconds      = 300
+reflection_seconds   = 600
+metareview_final_seconds = 1800
+heartbeat_seconds    = 60
+max_attempts         = 3
+
+[web_search]
+provider = "tavily"                  # tavily | brave
+max_results = 20
+
+[web_fetch]
+max_bytes = 50_010_000
+max_chars = 20_000
+timeout_seconds = 30
+user_agent = "hypothesis-engine/0.1 (+research; contact via project README)"
+
+[rag]
+enabled = true
+package_path = "./vendor/RAGAgent_AutonomousMaterialsSynthesis"
+seed_kb_path = ""
+auto_ingest_fetched_pdfs = true
+auto_ingest_arxiv_pdfs = true
+auto_ingest_max_pdfs_per_search = 20
+max_session_papers = 1000
+generation_discovery_max_pdfs_per_round = 100
+generation_wait_min_indexed_papers = 50
+generation_wait_timeout_seconds = 300
+embedding_model = "sfr-embedding-mistral"
+embedding_profile = "sfr"
+embedding_base_url = "http://nvidiaspark:8001/v1"
+llm_model = "gemma-4-26b-a4b-nvfp4"
+llm_base_url = "http://nvidiaspark:8000/v1"
+retrieval_method = "hybrid_multi_query"
+top_k_faiss = 50
+diversity = 0.7
+context_max_chars = 30000
+rerank_enabled = true
+rerank_base_url = "http://nvidiaspark:8002/v1"
+rerank_model = "nemotron-rerank-1b-v2"
+rerank_top_k = 15 
+run_graphrag = false
+use_graphrag = false
+
+[code_exec]
+provider = "local"               # anthropic | local
+local_cpu_seconds = 30
+local_mem_mb = 512
+
+[safety]
+enable_classifier = true
+enable_citation_verifier = true
+classifier_block_categories = ["cbrn", "csam", "weapons", "illicit_synthesis"]
+classifier_warn_categories = ["dual_use_bio"]
+
+# LLM provider selection. Choose one of:
+#   "anthropic"  — Claude via the official SDK (default). Full feature set:
+#                  cache breakpoints, extended thinking, batch API.
+#   "openai"     — OpenAI Chat Completions (api.openai.com). Reasoning
+#                  translated to `reasoning_effort` on o-series models.
+#   "openrouter" — openrouter.ai (200+ models from every major vendor).
+#                  Set OPENROUTER_API_KEY. Models like
+#                  "anthropic/claude-3.5-sonnet", "openai/gpt-5",
+#                  "google/gemini-2.5-pro", "meta-llama/llama-3.3-70b".
+#   "gemini"     — Google Gemini via OpenAI-compat endpoint. Set
+#                  GEMINI_API_KEY. Models: "gemini-2.5-pro",
+#                  "gemini-2.5-flash", "gemini-1.5-pro".
+#   "groq"       — Groq (fast Llama / Mixtral). Set GROQ_API_KEY.
+#   "together"   — Together AI. Set TOGETHER_API_KEY.
+#   "mistral"    — Mistral la-plateforme. Set MISTRAL_API_KEY.
+#   "ollama"     — Local Ollama at http://localhost:11434/v1 (no key needed).
+#   "openai_compatible" — Any other OpenAI-compatible endpoint; set
+#                  [llm.openai] base_url to point at it.
+#
+# After choosing a provider, set the entries in [models] to model ids it
+# can serve.
+[llm]
+provider = "openai_compatible"
+
+# For provider = "openai" / "openai_compatible" / any preset above: this
+# overrides the preset's base_url (rarely needed).
+[llm.openai]
+base_url = "http://localhost:18001/v1"
+
+# OpenRouter attribution (optional; for catalog ranking).
+[llm.openrouter]
+# referer = "https://your-app.example.com"
+# title   = "My Hypothesis Engine App"
+
+[web_ui]
+host = "127.0.0.1"
+port = 7878

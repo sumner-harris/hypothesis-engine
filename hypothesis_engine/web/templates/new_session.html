@@ -1,0 +1,43 @@
+{# Modified from the original work. #}
+{% extends "base.html" %}
+{% block title %}New session — Hypothesis Engine{% endblock %}
+{% block content %}
+<h1>Start a new session</h1>
+<form method="POST" action="/sessions/new">
+    <label>Research goal
+        <small>
+            Best results come from a structured prompt: objective, system/domain, background context,
+            mechanism or intervention space, scope constraints, expected evidence/work plan, and success/failure criteria.
+        </small>
+        <textarea name="goal" rows="6" placeholder="Objective: Investigate plausible mechanisms by which X causes Y.
+System/domain: ...
+Scope and constraints: ...
+Evidence/work plan expectations: ...
+Success and failure criteria: ..." required></textarea>
+    </label>
+    <label>Preferences (optional, free text)
+        <small>
+            Use this for ranking criteria such as novelty, mechanistic specificity, feasibility,
+            evidence standards, hypothesis diversity, and domain-specific output emphasis.
+        </small>
+        <textarea name="preferences" rows="3" placeholder="Prioritize: mechanistically specific, testable, literature-grounded hypotheses.
+Diversity: use distinct mechanisms, methods, or scales.
+Evidence standards: include controls, quantitative targets, and falsification criteria."></textarea>
+    </label>
+    <div class="grid">
+        <label>Budget (USD)
+            <input type="number" name="budget_usd" step="0.5" min="1" value="{{ default_budget }}">
+        </label>
+        <label>Initial generations (parallel)
+            <input type="number" name="n_initial" min="1" max="{{ max_n_initial }}" value="{{ default_n_initial }}">
+        </label>
+        <label>Wall clock (s)
+            <input type="number" name="wall_clock_seconds" min="60" step="60" value="{{ default_wall_clock_seconds }}">
+        </label>
+    </div>
+    <button type="submit">Launch</button>
+    <a href="/" role="button" class="secondary">Cancel</a>
+</form>
+<p><small>The session runs in the same process as this UI. You'll be redirected back to the
+sessions list — it should appear at the top within a few seconds.</small></p>
+{% endblock %}

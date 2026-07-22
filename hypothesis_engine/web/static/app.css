@@ -1,0 +1,315 @@
+/* Modified from the original work. */
+.status {
+    display: inline-block; padding: 0.1rem 0.45rem; border-radius: 0.3rem;
+    font-size: 0.72em; font-family: monospace;
+    background: var(--pico-muted-color); color: white;
+}
+.status-running          { background: #2864c5; }
+.status-paused           { background: #999; }
+.status-done             { background: #2a8a4f; }
+.status-failed,
+.status-aborted          { background: #b53636; }
+.status-draft            { background: #888; }
+.status-reviewed         { background: #6c4caf; }
+.status-in_tournament    { background: #2864c5; }
+.status-pinned           { background: #c08a00; }
+.status-rejected         { background: #b53636; }
+.status-quarantined      { background: #9c2; color: #222; }
+.status-retired          { background: #555; }
+table { font-size: 0.95em; }
+#events-log li {
+    padding: 0.15rem 0.25rem;
+    border-bottom: 1px dotted var(--pico-muted-border-color);
+}
+
+.session-prompt-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.session-prompt-entry {
+    margin-bottom: 0.75rem;
+}
+
+
+.workflow-panel {
+    margin-top: 1.5rem;
+}
+.workflow-map {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+        ". supervisor supervisor ."
+        "generation reflection ranking proximity"
+        "literature_review evolution evolution metareview";
+    gap: 4.25rem clamp(0.75rem, 2.2vw, 1.5rem);
+    align-items: stretch;
+    max-width: 68rem;
+    min-height: 28rem;
+    margin: 0.75rem auto 0;
+    padding: 0.9rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.45rem;
+    background: var(--pico-card-background-color);
+    overflow: hidden;
+}
+.workflow-svg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    color: var(--pico-muted-border-color);
+    pointer-events: none;
+}
+.workflow-svg marker path {
+    fill: currentColor;
+}
+.workflow-path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    marker-end: url(#workflow-arrow);
+    opacity: 0.8;
+    transition: color 160ms ease, opacity 160ms ease, filter 160ms ease;
+}
+.workflow-path.active {
+    color: #2a8a4f;
+    opacity: 1;
+    filter: drop-shadow(0 0 0.35rem rgba(42, 138, 79, 0.55));
+}
+.workflow-node {
+    position: relative;
+    z-index: 3;
+    width: min(9.25rem, 100%);
+    min-width: 0;
+    min-height: 4.9rem;
+    justify-self: center;
+    text-align: center;
+    display: grid;
+    align-content: center;
+    gap: 0.1rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.45rem;
+    background: var(--pico-background-color);
+    box-shadow: 0 0.3rem 0.9rem rgba(0, 0, 0, 0.04);
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.workflow-node strong,
+.workflow-node small,
+.workflow-node span {
+    overflow-wrap: anywhere;
+}
+.workflow-node strong {
+    font-size: 0.95rem;
+}
+.workflow-node small {
+    color: var(--pico-muted-color);
+}
+.workflow-node span {
+    font-family: monospace;
+    font-size: 0.72em;
+    color: var(--pico-muted-color);
+}
+.workflow-node small {
+    font-size: 0.78rem;
+}
+.workflow-node.active {
+    border-color: #2a8a4f;
+    box-shadow: 0 0 0 0.12rem rgba(42, 138, 79, 0.18), 0 0.4rem 1.1rem rgba(42, 138, 79, 0.14);
+    transform: translateY(-1px);
+}
+.workflow-node.active span {
+    color: #2a8a4f;
+    font-weight: 700;
+}
+.workflow-node-supervisor { grid-area: supervisor; }
+.workflow-node-generation { grid-area: generation; }
+.workflow-node-literature_review { grid-area: literature_review; }
+.workflow-node-reflection { grid-area: reflection; }
+.workflow-node-ranking { grid-area: ranking; }
+.workflow-node-evolution { grid-area: evolution; }
+.workflow-node-metareview { grid-area: metareview; }
+.workflow-node-proximity { grid-area: proximity; }
+.workflow-label {
+    position: absolute;
+    z-index: 2;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.25rem;
+    background: var(--pico-card-background-color);
+    color: var(--pico-muted-color);
+    font-family: monospace;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+.workflow-label-hyp { left: 25%; top: 15.25rem; }
+.workflow-label-selection { left: 43%; top: 15.25rem; }
+.workflow-label-review { right: 24%; top: 15.25rem; }
+.workflow-label-elo { right: 8%; top: 17.35rem; }
+.workflow-label-feedback { left: 32%; top: 24.35rem; }
+.workflow-label-reentry {
+    left: 8%;
+    bottom: 0.85rem;
+    max-width: 11.5rem;
+    text-align: center;
+    white-space: normal;
+}
+@media (max-width: 620px) {
+    .workflow-map {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "supervisor"
+            "generation"
+            "literature_review"
+            "reflection"
+            "ranking"
+            "proximity"
+            "evolution"
+            "metareview";
+        gap: 1.35rem;
+        min-height: auto;
+        padding: 0.75rem;
+    }
+    .workflow-svg,
+    .workflow-label {
+        display: none;
+    }
+    .workflow-node {
+        min-height: auto;
+        transform: none !important;
+    }
+    .workflow-node:not(.workflow-node-metareview)::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: -1.05rem;
+        width: 0.42rem;
+        height: 0.42rem;
+        border-right: 0.14rem solid var(--pico-muted-border-color);
+        border-bottom: 0.14rem solid var(--pico-muted-border-color);
+        transform: translateX(-50%) rotate(45deg);
+    }
+    .workflow-node.active:not(.workflow-node-metareview)::after {
+        border-color: #2a8a4f;
+    }
+}
+
+.session-view-tabs {
+    margin-top: 1.5rem;
+}
+.session-tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    margin-bottom: 0.9rem;
+}
+.session-tab-list button {
+    width: auto;
+    margin: 0 0 -1px 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.session-tab-list button[aria-selected="false"] {
+    background: transparent;
+    color: var(--pico-color);
+    border-color: var(--pico-muted-border-color);
+}
+.session-tab-list button[aria-selected="true"] {
+    border-bottom-color: var(--pico-background-color);
+}
+.session-tab-panel[hidden] {
+    display: none;
+}
+.cluster-panel {
+    margin-top: 1rem;
+}
+.cluster-plot {
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.45rem;
+    background: var(--pico-card-background-color);
+    padding: 0.85rem;
+}
+.cluster-plot-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    margin-bottom: 0.35rem;
+}
+.cluster-plot-toolbar h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+.cluster-plot-toolbar button {
+    width: auto;
+    margin: 0;
+}
+.cluster-plot-status {
+    margin: 0 0 0.65rem 0;
+    color: var(--pico-muted-color);
+    font-family: monospace;
+    font-size: 0.82rem;
+}
+.cluster-plot-stage {
+    min-height: 26rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.35rem;
+    background: var(--pico-background-color);
+    overflow: hidden;
+}
+.cluster-svg {
+    display: block;
+    width: 100%;
+    min-height: 26rem;
+}
+.cluster-axis line {
+    stroke: var(--pico-muted-border-color);
+    stroke-width: 2;
+}
+.cluster-axis text,
+.cluster-legend text {
+    fill: var(--pico-muted-color);
+    font-family: monospace;
+    font-size: 13px;
+}
+.cluster-label {
+    fill: var(--pico-color);
+    font-size: 13px;
+    font-weight: 650;
+    paint-order: stroke;
+    stroke: var(--pico-background-color);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+}
+.cluster-label-overlay {
+    fill: var(--pico-primary);
+    font-size: 12px;
+    font-weight: 750;
+    stroke-width: 3px;
+}
+@media (max-width: 620px) {
+    .session-tab-list {
+        align-items: stretch;
+    }
+    .session-tab-list button {
+        flex: 1 1 10rem;
+        padding-inline: 0.55rem;
+    }
+    .cluster-plot-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .cluster-plot-toolbar button {
+        width: 100%;
+    }
+    .cluster-plot,
+    .cluster-plot-stage {
+        border-radius: 0.35rem;
+    }
+}
+

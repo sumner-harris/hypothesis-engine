@@ -1,0 +1,227 @@
+# Initial literature-discovery lenses used by parallel Generation tasks.
+# Users can copy this file, edit the profiles for another field, and point
+# [generation].discovery_profiles at the new YAML path.
+required_work_packages:
+  - id: synthesis_intervention
+    label: Synthesis / intervention route
+    objective: Define the route or intervention that creates the target material state.
+    expected_outputs:
+      - concrete route, sample matrix, or processing sequence
+      - controllable variables such as composition, energy, dose, temperature, time, substrate, or environment
+      - practical constraints, throughput limits, contamination risks, or scale-up considerations
+  - id: characterization_validation
+    label: Characterization / validation
+    objective: Define measurements that distinguish the intended material state from artifacts or alternatives.
+    expected_outputs:
+      - structural, chemical, spectroscopic, imaging, or property readouts
+      - diagnostic signatures that separate the hypothesis from competing explanations
+      - controls, calibration standards, detection limits, and reproducibility checks
+  - id: theory_modeling
+    label: Theory / modeling
+    objective: Define calculations or models that make the proposed mechanism quantitative and predictive.
+    expected_outputs:
+      - model type, simulation protocol, or analytical framework
+      - parameter sweep and calculated quantities such as energies, barriers, rates, probabilities, or descriptors
+      - uncertainty checks, sensitivity tests, and model limits
+  - id: quantitative_decision_criteria
+    label: Quantitative decision criteria
+    objective: Define numerical targets or go/no-go thresholds needed to decide whether the hypothesis is supported.
+    expected_outputs:
+      - expected ranges, thresholds, effect sizes, or ranking criteria
+      - pass/fail criteria connecting calculations and measurements
+      - minimum evidence needed before scaling or follow-up studies
+  - id: controls_failure_modes
+    label: Controls / failure modes
+    objective: Define negative controls and failure outcomes that would bound or falsify the hypothesis.
+    expected_outputs:
+      - null cases, competing mechanisms, and artifact checks
+      - degradation, damage, reproducibility, or contamination failure modes
+      - explicit outcomes that would falsify or weaken the claim
+
+profiles:
+  - id: mechanism
+    label: Mechanism and causal pathways
+    objective: >-
+      Focus on mechanisms, causal chains, thresholds, kinetics, and failure
+      modes that could explain why the target phenomenon occurs.
+    primary_driver_guidance: >-
+      Lead with the atomistic or causal mechanism as the scientific driver,
+      then use synthesis, characterization, and modeling evidence to turn it
+      into a complete study.
+    required_study_elements:
+      - Atomistic or causal mechanism for defect formation, conversion, transport, property change, or selectivity.
+      - Synthesis, processing, implantation, treatment, or intervention route with controllable variables.
+      - Characterization or validation plan using structural, chemical, spectroscopic, imaging, or property readouts.
+      - Theory, modeling, thermodynamic, kinetic, or structure-property rationale that constrains the mechanism.
+      - Failure modes, competing mechanisms, damage channels, contamination risks, and falsification controls.
+    search_guidance:
+      - >-
+        Use mechanism-heavy terms such as mechanism, threshold, kinetics,
+        pathway, defect, active site, selectivity, or rate-limiting step as
+        appropriate.
+      - >-
+        Prioritize papers that explain why an effect occurs rather than only
+        reporting that it occurs.
+    avoid_overfocus: >-
+      Do not spend most searches on process optimization, assays, or broad
+      reviews unless they directly expose a mechanism.
+    suggested_query_angles:
+      - mechanism and threshold terms
+      - causal defect or active-site terms
+      - failure modes and competing mechanisms
+
+  - id: synthesis_route
+    label: Synthesis or intervention routes
+    objective: >-
+      Focus on practical routes, process variables, intervention design,
+      sample preparation, and upstream or downstream steps needed to make the
+      idea work.
+    primary_driver_guidance: >-
+      Lead with the route or intervention that would make the study possible,
+      then integrate mechanism, characterization, and modeling support around
+      that route.
+    required_study_elements:
+      - Primary synthesis, processing, implantation, treatment, or workflow claim led by route control.
+      - Mechanistic reason the route should access the targeted material state, defect population, or property.
+      - Characterization or validation plan linking process variables to composition, structure, and performance.
+      - Modeling, design-rule, or energetic support for route feasibility and parameter selection.
+      - Practical constraints such as damage, reproducibility, contamination, throughput, substrate limits, or scale-up.
+    search_guidance:
+      - >-
+        Use route-oriented terms such as synthesis, conversion, treatment,
+        annealing, processing, workflow, engineering, reactor, or scale-up as
+        appropriate.
+      - >-
+        Look for controllable experimental knobs and route constraints, not
+        just the core mechanism.
+    avoid_overfocus: >-
+      Do not duplicate a pure mechanism survey; emphasize how the phenomenon
+      could be created, controlled, or integrated into a workflow.
+    suggested_query_angles:
+      - process route and treatment terms
+      - integration with upstream or downstream workflow
+      - control variables and optimization limits
+
+  - id: characterization
+    label: Characterization and validation
+    objective: >-
+      Focus on how the hypothesis could be measured, falsified, benchmarked,
+      or monitored with analytical, imaging, computational, or assay readouts.
+    primary_driver_guidance: >-
+      Lead with the observable signature or validation strategy, then build the
+      synthesis/intervention and modeling components needed to explain and test
+      that signature.
+    required_study_elements:
+      - Primary characterization, measurement, or benchmark claim led by an observable material signature.
+      - Synthesis, processing, or perturbation route that should produce distinguishable test samples.
+      - Mechanistic interpretation connecting the readout to composition, defects, structure, or properties.
+      - Modeling, simulation, calibration, or quantitative analysis that separates competing explanations.
+      - Controls, negative cases, artifacts, detection limits, and reproducibility checks.
+    search_guidance:
+      - >-
+        Use validation-oriented terms such as assay, characterization,
+        spectroscopy, microscopy, benchmark, product distribution, readout, or
+        in situ as appropriate.
+      - >-
+        Prioritize papers that connect observable signatures to mechanistic
+        claims.
+    avoid_overfocus: >-
+      Do not spend most searches on synthesis or mechanism unless the paper
+      also offers a concrete validation readout.
+    suggested_query_angles:
+      - measurement and assay terms
+      - diagnostic signatures and controls
+      - benchmarks, metrics, and falsification tests
+
+  - id: theory_modeling
+    label: Theory, modeling, and design rules
+    objective: >-
+      Focus on simulations, predictive models, structure-property rules,
+      thermodynamics, energetics, or data-driven design principles.
+    primary_driver_guidance: >-
+      Lead with the model, descriptor, energetic argument, or design rule, then
+      specify the experiment and characterization needed to test it.
+    required_study_elements:
+      - Primary theory, simulation, descriptor, energetic, kinetic, or data-driven design claim.
+      - Candidate synthesis, implantation, treatment, or perturbation route that would test the prediction.
+      - Characterization or benchmark readouts that would discriminate the model from alternatives.
+      - Mechanistic interpretation that links model variables to material structure, defects, or properties.
+      - Model limits, uncertainty, parameter sensitivity, negative predictions, and falsification tests.
+    search_guidance:
+      - >-
+        Use modeling-oriented terms such as DFT, molecular dynamics,
+        simulation, model, energy landscape, descriptor, prediction, or
+        structure-property relationship as appropriate.
+      - >-
+        Look for quantitative design rules that could constrain or rank
+        hypotheses.
+    avoid_overfocus: >-
+      Do not treat purely experimental reports as central unless they contain
+      parameters or constraints useful for modeling.
+    suggested_query_angles:
+      - simulation and energetics terms
+      - predictive descriptors and design rules
+      - quantitative constraints for feasibility
+
+  - id: adjacent_analogs
+    label: Adjacent analogs and transfer
+    objective: >-
+      Focus on nearby fields, analogous materials or organisms, transferable
+      methods, and cases where a similar idea worked under different
+      constraints.
+    primary_driver_guidance: >-
+      Lead with the transferable analogy, then map it back to a complete study
+      with route, mechanism, characterization, and modeling requirements in the
+      target system.
+    required_study_elements:
+      - Primary transfer claim from an adjacent material class, method, phenomenon, or field.
+      - Adapted synthesis, processing, implantation, treatment, or workflow route for the target system.
+      - Mechanistic mapping that identifies what should and should not transfer.
+      - Characterization or benchmark plan that tests whether the analogy holds.
+      - Theory, modeling, or design rules plus boundary conditions where transfer should fail.
+    search_guidance:
+      - >-
+        Use analogy-oriented terms such as analogous, related, transfer,
+        cross-system, inspired, biomimetic, neighboring material class, or
+        adjacent substrate as appropriate.
+      - >-
+        Search beyond the exact target system when that reveals mechanisms or
+        workflows that can transfer back.
+    avoid_overfocus: >-
+      Do not stay inside only the obvious core literature; this lens should
+      expand the source pool.
+    suggested_query_angles:
+      - nearby materials, organisms, or substrates
+      - transferable workflows from adjacent systems
+      - cross-field analog mechanisms
+
+  - id: constraints_negative
+    label: Constraints, negative evidence, and failure modes
+    objective: >-
+      Focus on what blocks the idea: null results, degradation, toxicity,
+      contamination, poor selectivity, damage, reproducibility limits, or
+      missing evidence.
+    primary_driver_guidance: >-
+      Lead with the limiting mechanism or strongest failure risk, then turn it
+      into a study that can bound, avoid, exploit, or falsify that constraint.
+    required_study_elements:
+      - Primary constraint, failure-mode, or negative-evidence claim led by feasibility limits.
+      - Synthesis, processing, implantation, treatment, or workflow variables that control or expose the limit.
+      - Characterization, controls, or stress tests that detect failure, artifacts, or degradation.
+      - Mechanistic and modeling rationale for why the limit appears and how it might be shifted.
+      - Explicit null outcomes, competing explanations, reproducibility risks, and go/no-go criteria.
+    search_guidance:
+      - >-
+        Use constraint-oriented terms such as limitation, damage, degradation,
+        failure, selectivity loss, contamination, side reaction, null result, or
+        reproducibility as appropriate.
+      - >-
+        Treat empty or weak search results as useful novelty and risk evidence
+        when documented clearly.
+    avoid_overfocus: >-
+      Do not only collect supportive papers; deliberately search for papers
+      that make the idea harder.
+    suggested_query_angles:
+      - failure modes and degradation
+      - negative controls and weak evidence
+      - constraints that bound feasibility
