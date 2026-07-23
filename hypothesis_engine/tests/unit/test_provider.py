@@ -230,11 +230,13 @@ def test_build_request_translates_tools_and_tool_choice() -> None:
     spec = AgentCallSpec(
         route=_route(),
         user_blocks=[CachedBlock("go")],
-        tools=[{
-            "name": "record_hypothesis",
-            "description": "Save a hypothesis",
-            "input_schema": {"type": "object", "properties": {"title": {"type": "string"}}},
-        }],
+        tools=[
+            {
+                "name": "record_hypothesis",
+                "description": "Save a hypothesis",
+                "input_schema": {"type": "object", "properties": {"title": {"type": "string"}}},
+            }
+        ],
         tool_choice={"type": "tool", "name": "record_hypothesis"},
     )
     req = _build_openai_request(spec)
@@ -260,6 +262,15 @@ def test_thinking_translates_to_reasoning_effort_for_o_series() -> None:
     )
     req = _build_openai_request(spec)
     assert req.get("reasoning_effort") == "medium"
+
+
+def test_explicit_reasoning_effort_applies_to_compatible_model() -> None:
+    spec = AgentCallSpec(
+        route=_route(model="gemma-4-31b-it-nvfp4", thinking=0),
+        user_blocks=[CachedBlock("think hard")],
+    )
+    req = _build_openai_request(spec, reasoning_effort="high")
+    assert req["reasoning_effort"] == "high"
 
 
 def test_thinking_dropped_for_non_reasoning_model() -> None:
@@ -318,8 +329,12 @@ def test_translate_user_tool_result_to_openai_tool_message() -> None:
     msg = {
         "role": "user",
         "content": [
-            {"type": "tool_result", "tool_use_id": "call_1",
-             "content": {"hits": ["a", "b"]}, "is_error": False},
+            {
+                "type": "tool_result",
+                "tool_use_id": "call_1",
+                "content": {"hits": ["a", "b"]},
+                "is_error": False,
+            },
         ],
     }
     out = _translate_anthropic_message(msg)
@@ -359,16 +374,24 @@ def test_translate_tool_error_is_marked_in_content() -> None:
 # ----------------------------- response adaptation ----------------------------- #
 
 
-def _fake_openai_response(*, text: str = "", tool_calls: list[dict] | None = None,
-                          finish: str = "stop", in_tok: int = 100, out_tok: int = 50):
+def _fake_openai_response(
+    *,
+    text: str = "",
+    tool_calls: list[dict] | None = None,
+    finish: str = "stop",
+    in_tok: int = 100,
+    out_tok: int = 50,
+):
     """Build a SimpleNamespace that quacks like an openai ChatCompletion."""
     tcs = []
-    for tc in (tool_calls or []):
-        tcs.append(SimpleNamespace(
-            id=tc["id"],
-            type="function",
-            function=SimpleNamespace(name=tc["name"], arguments=tc["arguments"]),
-        ))
+    for tc in tool_calls or []:
+        tcs.append(
+            SimpleNamespace(
+                id=tc["id"],
+                type="function",
+                function=SimpleNamespace(name=tc["name"], arguments=tc["arguments"]),
+            )
+        )
     msg = SimpleNamespace(content=text or None, tool_calls=tcs or None)
     choice = SimpleNamespace(message=msg, finish_reason=finish)
     usage = SimpleNamespace(prompt_tokens=in_tok, completion_tokens=out_tok)
@@ -410,21 +433,21 @@ def test_adapt_response_handles_malformed_tool_args() -> None:
 
 def test_adapt_response_parses_gemma_raw_tool_args_for_gemma_models() -> None:
     raw_args = (
-        '<|tool_call>call:record_review{'
+        "<|tool_call>call:record_review{"
         'assumptions:[{assumption:<|"|>Energy stays confined in plane.<|"|>,'
         'plausibility:<|"|>plausible<|"|>,'
         'rationale:<|"|>A monolayer has limited out-of-plane dissipation.<|"|>}],'
-        'correctness:0.7,'
+        "correctness:0.7,"
         'evidence:[{claim:<|"|>Light ions disorder 2D materials efficiently.<|"|>,'
         'excerpt:<|"|>Lighter ions are found to be more efficient.<|"|>,'
         'url:<|"|>https://europepmc.org/article/MED/42080797<|"|>}],'
-        'feasibility:0.9,'
+        "feasibility:0.9,"
         'kind:<|"|>full<|"|>,'
         'notes:<|"|>Compact review.<|"|>,'
-        'novelty:0.8,'
-        'testability:0.9,'
+        "novelty:0.8,"
+        "testability:0.9,"
         'verdict:<|"|>missing_piece<|"|>}'
-        '<tool_call|>'
+        "<tool_call|>"
     )
     raw = _fake_openai_response(
         tool_calls=[{"id": "c", "name": "record_review", "arguments": raw_args}],
@@ -461,6 +484,7 @@ async def test_openai_call_persists_transcript_and_charges_budget(tmp_cfg, conn)
 
     cfg = tmp_cfg
     cfg.llm.provider = "openai"
+    cfg.llm.openai.reasoning_effort = "high"
     cfg.secrets.OPENAI_API_KEY = "sk-fake"
 
     try:
@@ -469,11 +493,17 @@ async def test_openai_call_persists_transcript_and_charges_budget(tmp_cfg, conn)
 
         from hypothesis_engine.models import ResearchPlan, Session
         from hypothesis_engine.storage.repos import sessions as sess_repo
+
         s = Session(
-            id="ses_p", created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
-            status="running", research_goal="g",
+            id="ses_p",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            status="running",
+            research_goal="g",
             research_plan=ResearchPlan(objective="x"),
-            config_snapshot={}, budget_tokens=10_000, budget_usd=1.0,
+            config_snapshot={},
+            budget_tokens=10_000,
+            budget_usd=1.0,
         )
         await sess_repo.insert(conn, s)
 
@@ -497,6 +527,8 @@ async def test_openai_call_persists_transcript_and_charges_budget(tmp_cfg, conn)
             ctx = CallContext(session_id="ses_p", task_id=None, agent="generation", action="test")
             resp = await client.call(spec, ctx)
 
+        call_request = mock_instance.chat.completions.create.await_args.kwargs
+        assert call_request["reasoning_effort"] == "high"
         assert resp.input_tokens == 100
         assert resp.output_tokens == 50
         snap = budget.snapshot()

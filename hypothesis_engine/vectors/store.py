@@ -3,8 +3,8 @@
 
 Uses `IndexFlatIP` over L2-normalized vectors → exact cosine similarity.
 Tradeoff: O(N) search, fine for N < ~10k hypotheses per session. If a session
-ever grows past that, swap to `IndexHNSWFlat` (changes file format; bump
-embeddings_meta migration).
+ever grows past that, swap to `IndexHNSWFlat` (changes the persisted index
+format and requires rebuilding existing indexes).
 """
 
 from __future__ import annotations
@@ -34,8 +34,6 @@ def _store_lock(directory: object) -> asyncio.Lock:
 
 class FaissStore:
     def __init__(self, cfg: Config, session_id: str, dim: int) -> None:
-        self.cfg = cfg
-        self.session_id = session_id
         self.dim = dim
         self.index: faiss.IndexFlatIP | None = None
         self._dir = cfg.session_vector_dir(session_id)

@@ -68,7 +68,6 @@ async def run_tool_loop(
         "record_hypothesis",
         "record_review",
         "record_system_feedback",
-        "record_rubric_score",
         "record_research_plan",
     ),
     terminal_min_seen_urls: int = 0,

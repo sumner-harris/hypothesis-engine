@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from hypothesis_engine.safety.quoting import (
+from hypothesis_engine.llm.prompt_boundaries import (
     quote_hypothesis,
     quote_untrusted,
     short_hash,

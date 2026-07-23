@@ -38,28 +38,8 @@ def feedback_id() -> str:
     return f"fb_{_ulid()}"
 
 
-def span_id() -> str:
-    return f"spn_{_ulid()}"
-
-
-def trace_id() -> str:
-    return f"trc_{_ulid()}"
-
-
 def tool_run_id() -> str:
     return f"trn_{_ulid()}"
-
-
-def bench_id() -> str:
-    return f"bnc_{_ulid()}"
-
-
-def bench_candidate_id() -> str:
-    return f"bcd_{_ulid()}"
-
-
-def bench_match_id() -> str:
-    return f"bmt_{_ulid()}"
 
 
 # --------------------------------------------------------------------------- #

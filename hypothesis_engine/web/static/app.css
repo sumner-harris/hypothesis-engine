@@ -14,7 +14,6 @@
 .status-in_tournament    { background: #2864c5; }
 .status-pinned           { background: #c08a00; }
 .status-rejected         { background: #b53636; }
-.status-quarantined      { background: #9c2; color: #222; }
 .status-retired          { background: #555; }
 table { font-size: 0.95em; }
 #events-log li {

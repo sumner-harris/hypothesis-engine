@@ -37,12 +37,12 @@ from ..capabilities.prompting import (
 from ..citations import merge_citation_candidates
 from ..config import PROJECT_ROOT
 from ..llm.anthropic_client import AgentCallSpec, CachedBlock, CallContext
+from ..llm.prompt_boundaries import quote_untrusted
 from ..llm.prompts import render
 from ..llm.routing import route
 from ..llm.tool_loop import ToolLoopExhausted, run_tool_loop
 from ..logging import get_logger
 from ..models import CitedPaper, Hypothesis, ResearchPlan, Task, TaskResult
-from ..safety.quoting import quote_untrusted
 from ..storage.artifacts import read_json, write_json
 from ..storage.repos import embeddings as emb_repo
 from ..storage.repos import feedback as fb_repo

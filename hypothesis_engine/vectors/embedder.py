@@ -1,27 +1,18 @@
 # Modified from the original work.
-"""Embedding clients.
-
-Voyage primary (`voyage-3-large` by default), OpenAI / OpenAI-compatible
-embedding endpoints, and hash fallback for runs where no embedding API is configured.
+"""OpenAI and OpenAI-compatible embedding clients.
 
 All clients return `np.ndarray` of shape (n, dim), L2-normalized so cosine
-similarity == inner product (we use FAISS `IndexFlatIP`).
+similarity equals inner product in the FAISS `IndexFlatIP` store.
 """
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import os
-from itertools import pairwise
 from typing import Protocol
 
 import numpy as np
 
-from ..config import Config, _is_local_openai_compatible_base_url
-from ..logging import get_logger
-
-_log = get_logger("vectors.embedder")
+from ..config import Config
 
 
 class Embedder(Protocol):
@@ -32,195 +23,103 @@ class Embedder(Protocol):
 
 
 class NoEmbeddingsAvailable(RuntimeError):
-    """Raised when no embedding backend is configured. Callers should catch
-    this and treat dedup / proximity as a soft no-op rather than failing
-    the agent."""
+    """Raised when the configured embedding endpoint cannot be used."""
 
 
-def _l2_normalize(v: np.ndarray) -> np.ndarray:
-    norms = np.linalg.norm(v, axis=1, keepdims=True)
+def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
-    return (v / norms).astype("float32")
-
-
-# --------------------------------------------------------------------------- #
-# Voyage
-
-
-class VoyageEmbedder:
-    def __init__(self, cfg: Config) -> None:
-        self.model = cfg.embeddings.model
-        self.dim = cfg.embeddings.dim
-        self._cfg = cfg
-
-    async def embed(self, texts: list[str]) -> np.ndarray:
-        if not texts:
-            return np.zeros((0, self.dim), dtype="float32")
-        api_key = self._cfg.secrets.VOYAGE_API_KEY or os.environ.get("VOYAGE_API_KEY")
-        if not api_key:
-            raise RuntimeError("VOYAGE_API_KEY not set; cannot use VoyageEmbedder")
-        # voyageai is sync; offload to a thread to keep the loop responsive.
-        import voyageai
-
-        client = voyageai.Client(api_key=api_key)
-
-        def _call() -> list[list[float]]:
-            res = client.embed(texts, model=self.model, input_type="document")
-            return res.embeddings
-
-        vecs = await asyncio.to_thread(_call)
-        arr = np.asarray(vecs, dtype="float32")
-        return _l2_normalize(arr)
-
-
-# --------------------------------------------------------------------------- #
-# OpenAI fallback
+    return (vectors / norms).astype("float32")
 
 
 class OpenAIEmbedder:
+    """Client for direct OpenAI or a configured OpenAI-compatible endpoint."""
+
     def __init__(self, cfg: Config) -> None:
         provider = cfg.embeddings.provider.lower()
-        self.model = (
-            cfg.embeddings.model
-            if provider in {"openai", "openai_compatible"}
-            else "text-embedding-3-small"
-        )
+        if provider not in {"openai", "openai_compatible"}:
+            raise ValueError(f"unknown embeddings provider: {provider}")
+        if provider == "openai" and cfg.embeddings.model != "text-embedding-3-large":
+            raise ValueError(
+                'provider="openai" requires model="text-embedding-3-large"'
+            )
+
+        self.model = cfg.embeddings.model
         self.dim = cfg.embeddings.dim
         self._cfg = cfg
         self._compat_mode = provider == "openai_compatible"
-        self._base_url = cfg.embeddings.base_url or os.environ.get(
-            "OPENAI_EMBEDDINGS_BASE_URL"
+        self._base_url = (
+            cfg.embeddings.base_url or os.environ.get("OPENAI_EMBEDDINGS_BASE_URL")
+            if self._compat_mode
+            else None
         )
 
     async def embed(self, texts: list[str]) -> np.ndarray:
         if not texts:
             return np.zeros((0, self.dim), dtype="float32")
+
         api_key = self._cfg.secrets.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY")
-        if (
-            not api_key
-            and self._compat_mode
-            and _is_local_openai_compatible_base_url(self._base_url)
-        ):
-            api_key = "compat-no-key"
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY not set; cannot use OpenAIEmbedder")
+        if self._compat_mode:
+            if not self._base_url:
+                raise NoEmbeddingsAvailable(
+                    "openai_compatible embeddings require embeddings.base_url "
+                    "or OPENAI_EMBEDDINGS_BASE_URL"
+                )
+            # The OpenAI SDK requires a non-empty value even when the selected
+            # compatible endpoint does not authenticate.
+            api_key = api_key or "compat-no-key"
+        elif not api_key:
+            raise NoEmbeddingsAvailable(
+                "OPENAI_API_KEY is required for OpenAI embeddings"
+            )
 
         try:
             import openai  # type: ignore[import-not-found]
-        except ImportError as e:  # pragma: no cover
-            raise RuntimeError("pip install openai (or hypothesis-engine[openai]) to use the fallback") from e
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("the openai package is required for embeddings") from exc
 
         kwargs = {"api_key": api_key}
         if self._base_url:
             kwargs["base_url"] = self._base_url
         client = openai.AsyncOpenAI(**kwargs)
-        # OpenAI supports batches of up to ~2048 entries; chunk conservatively.
-        batches = [texts[i : i + 256] for i in range(0, len(texts), 256)]
+
         out: list[list[float]] = []
-        for batch in batches:
-            request = {"model": self.model, "input": batch}
+        for start in range(0, len(texts), 256):
+            batch = texts[start : start + 256]
+            request: dict[str, object] = {"model": self.model, "input": batch}
             if not self._compat_mode:
                 # OpenAI text-embedding-3 models support dimension truncation;
-                # many OpenAI-compatible local servers do not.
+                # many compatible local servers do not accept this parameter.
                 request["dimensions"] = self.dim
-            resp = await client.embeddings.create(**request)
-            out.extend(d.embedding for d in resp.data)
-        return _l2_normalize(np.asarray(out, dtype="float32"))
+            response = await client.embeddings.create(**request)
+            out.extend(item.embedding for item in response.data)
 
-
-# --------------------------------------------------------------------------- #
-# Resolver
-
-
-class HashEmbedder:
-    """Deterministic local fallback: a hashed-token bag-of-features vector.
-
-    Cheap, no API key, no network. Bad-but-better-than-nothing semantic
-    quality: it captures token overlap (so near-duplicates of a hypothesis
-    will land near each other) but won't catch paraphrase or semantic
-    similarity. Used when neither Voyage nor OpenAI keys are configured —
-    keeps Proximity and dedup running rather than crashing the session.
-    """
-
-    def __init__(self, cfg: Config) -> None:
-        self.model = "hash-fallback"
-        self.dim = cfg.embeddings.dim
-
-    async def embed(self, texts: list[str]) -> np.ndarray:
-        if not texts:
-            return np.zeros((0, self.dim), dtype="float32")
-
-        def _do() -> np.ndarray:
-            out = np.zeros((len(texts), self.dim), dtype="float32")
-            for i, t in enumerate(texts):
-                # Word-level murmur-ish folding: hash each token and bump
-                # the bucket. Bigram features improve discrimination.
-                tokens = (t or "").lower().split()
-                for tok in tokens:
-                    h = int.from_bytes(
-                        hashlib.blake2b(tok.encode("utf-8"), digest_size=4).digest(),
-                        "big",
-                    )
-                    out[i, h % self.dim] += 1.0
-                for a, b in pairwise(tokens):
-                    bg = f"{a}_{b}"
-                    h = int.from_bytes(
-                        hashlib.blake2b(bg.encode("utf-8"), digest_size=4).digest(),
-                        "big",
-                    )
-                    out[i, h % self.dim] += 0.5
-            return out
-
-        arr = await asyncio.to_thread(_do)
-        return _l2_normalize(arr)
-
-
-# Once-per-process flags so the fallback warning doesn't fire on every
-# pair-selection (make_embedder is called inside the ranking loop and was
-# producing ~200 identical log lines per session).
-_FALLBACK_WARNED: set[str] = set()
-
-
-def _warn_once(key: str) -> None:
-    if key not in _FALLBACK_WARNED:
-        _FALLBACK_WARNED.add(key)
-        _log.warning(key)
+        vectors = np.asarray(out, dtype="float32")
+        expected = (len(texts), self.dim)
+        if vectors.shape != expected:
+            raise RuntimeError(
+                f"embedding endpoint returned shape {vectors.shape}; expected {expected}"
+            )
+        return _l2_normalize(vectors)
 
 
 def make_embedder(cfg: Config) -> Embedder:
-    """Construct an embedder honoring `cfg.embeddings.provider`.
-
-    Auto-fallback chain: if the configured provider has no API key, fall
-    through Voyage → OpenAI → HashEmbedder so the system stays usable
-    even when no embeddings credentials are set (just with weaker
-    semantic quality in proximity / dedup).
-    """
+    """Construct one of the two supported embedding providers."""
     provider = cfg.embeddings.provider.lower()
-    if provider == "voyage":
-        if cfg.secrets.VOYAGE_API_KEY or os.environ.get("VOYAGE_API_KEY"):
-            return VoyageEmbedder(cfg)
-        if cfg.secrets.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY"):
-            _warn_once("voyage_key_missing_using_openai_embeddings")
-            return OpenAIEmbedder(cfg)
-        _warn_once("no_embedding_key_using_hash_fallback")
-        return HashEmbedder(cfg)
     if provider == "openai":
-        if cfg.secrets.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY"):
-            return OpenAIEmbedder(cfg)
-        _warn_once("openai_key_missing_using_hash_fallback")
-        return HashEmbedder(cfg)
+        if not (cfg.secrets.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY")):
+            raise NoEmbeddingsAvailable(
+                "OPENAI_API_KEY is required for OpenAI embeddings"
+            )
+        return OpenAIEmbedder(cfg)
     if provider == "openai_compatible":
-        base_url = cfg.embeddings.base_url or os.environ.get("OPENAI_EMBEDDINGS_BASE_URL")
-        has_key = bool(cfg.secrets.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY"))
-        if base_url and (has_key or _is_local_openai_compatible_base_url(base_url)):
-            return OpenAIEmbedder(cfg)
-        _warn_once("openai_compatible_embeddings_unavailable_using_hash_fallback")
-        return HashEmbedder(cfg)
-    if provider == "hash":
-        return HashEmbedder(cfg)
+        base_url = cfg.embeddings.base_url or os.environ.get(
+            "OPENAI_EMBEDDINGS_BASE_URL"
+        )
+        if not base_url:
+            raise NoEmbeddingsAvailable(
+                "openai_compatible embeddings require embeddings.base_url "
+                "or OPENAI_EMBEDDINGS_BASE_URL"
+            )
+        return OpenAIEmbedder(cfg)
     raise ValueError(f"unknown embeddings provider: {provider}")
-
-
-def _reset_fallback_warned_for_tests() -> None:
-    """Test helper: clear the once-per-process warn cache."""
-    _FALLBACK_WARNED.clear()

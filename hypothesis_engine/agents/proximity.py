@@ -41,7 +41,7 @@ class ProximityAgent(BaseAgent):
 
         hyps = await hyp_repo.list_for_session(self.deps.db, session_id)
         # Identify hypotheses missing an embedding for this model. One query
-        # over the whole session instead of N has_embedding() probes.
+        # over the whole session instead of per-hypothesis existence probes.
         rows = await emb_repo.list_for_session(self.deps.db, session_id)
         existing_for_model = {
             r["hypothesis_id"] for r in rows if r["model"] == embedder.model

@@ -1,2 +1,0 @@
-{"id":"ranking-001","candidate":"Hypothesis 1 proposes microbiome-driven inflammation; hypothesis 2 proposes vascular dysfunction. Hypothesis 1 has stronger mechanistic detail and a tractable knockout experiment. better idea: 1","expected":{"must_contain":["better idea"]}}
-{"id":"ranking-002","candidate":"Both hypotheses are plausible; hypothesis 2 is more specific about dose-response curves and proposes a measurable biomarker. Hypothesis 1 lacks a falsifiable prediction. better idea: 2","expected":{"must_contain":["better idea"]}}

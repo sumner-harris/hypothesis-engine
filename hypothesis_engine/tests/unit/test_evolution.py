@@ -131,8 +131,10 @@ async def _seed_session(conn) -> Session:
 
 
 async def _seed_clustered_session(conn, tmp_cfg) -> tuple[Session, list[Hypothesis]]:
-    tmp_cfg.embeddings.provider = "hash"
+    tmp_cfg.embeddings.provider = "openai_compatible"
+    tmp_cfg.embeddings.model = "test-local-embedding"
     tmp_cfg.embeddings.dim = 4
+    tmp_cfg.embeddings.base_url = "http://localhost:8001/v1"
     session = _session()
     await sess_repo.insert(conn, session)
 

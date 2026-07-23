@@ -106,8 +106,8 @@ class TokenBudget:
     ) -> None:
         """Release the reservation and credit actual usage.
 
-        Pass `actual_input_tokens` and `actual_output_tokens` separately so the
-        bench (and any future per-input/output accounting) can read them from
+        Pass `actual_input_tokens` and `actual_output_tokens` separately so
+        consumers can read them from
         the snapshot. The legacy `actual_tokens` kwarg is treated as a combined
         total and credited only to `used_tokens` — its split is unknown so the
         per-input/output counters stay at 0 for that call.

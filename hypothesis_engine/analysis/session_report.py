@@ -28,6 +28,10 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 
 from ..config import Config
+from .rag_projection import (
+    load_or_build_rag_projection,
+    transform_rag_vectors,
+)
 
 try:  # pragma: no cover - exercised in environments with FAISS installed.
     import faiss
@@ -150,11 +154,24 @@ def analyze_session(
     hyp_vector_analysis = _analyze_hypothesis_vectors(
         hypotheses, hyp_vectors, paths, n_clusters=n_clusters
     )
+    kb_projection = load_or_build_rag_projection(cfg, session_id)
     kb = _load_kb_vectors(cfg, session_id, max_points=max_kb_points)
     kb_analysis = _analyze_kb_vectors(
-        cfg, kb, paths, n_clusters=n_clusters, research_goal=research_goal
+        cfg,
+        kb,
+        paths,
+        n_clusters=n_clusters,
+        research_goal=research_goal,
+        projection=kb_projection,
     )
-    joint_pca = _analyze_joint_pca(hyp_vectors, hypotheses, kb, kb_analysis, paths)
+    joint_pca = _analyze_joint_pca(
+        hyp_vectors,
+        hypotheses,
+        kb,
+        kb_analysis,
+        paths,
+        projection=kb_projection,
+    )
 
     _write_tables(
         paths,
@@ -2119,6 +2136,7 @@ def _analyze_kb_vectors(
     *,
     n_clusters: int,
     research_goal: str,
+    projection: dict[str, Any],
 ) -> dict[str, Any]:
     vectors = kb.get("sample_vectors")
     meta = kb.get("sample_meta") or []
@@ -2138,8 +2156,26 @@ def _analyze_kb_vectors(
 
     sources = [str(m.get("source") or m.get("file") or m.get("url") or "unknown") for m in meta]
     source_counts = Counter(sources)
-    k = min(max(2, n_clusters), len(meta))
-    labels = _kmeans_labels(vectors, k)
+    sample_indices = [
+        int(index) for index in (kb.get("sample_indices") or range(len(meta)))
+    ]
+    if (
+        not projection.get("available")
+        or len(projection.get("coordinates", [])) < max(sample_indices, default=-1) + 1
+    ):
+        return {
+            "available": False,
+            "metrics": {
+                "available": bool(kb.get("available")),
+                "chunks": kb.get("count", 0),
+                "sample_chunks": kb.get("sample_count", 0),
+                "error": projection.get("error") or "missing shared RAG projection",
+            },
+            "cluster_rows": [],
+            "pca_rows": [],
+            "density": {"methods": {}, "metrics": {}},
+        }
+    labels = [int(projection["labels"][index]) for index in sample_indices]
     silhouette = None
     if len(set(labels)) > 1 and len(set(labels)) < len(labels):
         try:
@@ -2148,12 +2184,14 @@ def _analyze_kb_vectors(
             silhouette = None
 
     pca_rows = []
-    coords = PCA(n_components=2, svd_solver="randomized", random_state=13).fit_transform(vectors)
-    for i, ((x, y), label, item) in enumerate(zip(coords, labels, meta, strict=False)):
+    coords = projection["coordinates"][sample_indices]
+    for source_index, (x, y), label, item in zip(
+        sample_indices, coords, labels, meta, strict=False
+    ):
         source = str(item.get("source") or item.get("file") or "")
         pca_rows.append(
             {
-                "kb_sample_index": i,
+                "kb_sample_index": source_index,
                 "x": float(x),
                 "y": float(y),
                 "cluster": int(label),
@@ -2249,6 +2287,11 @@ def _analyze_kb_vectors(
         "sample_document_entropy": _entropy(list(source_counts.values())),
         "cluster_count": len(set(labels)),
         "silhouette_cosine": silhouette,
+        "projection_silhouette": projection.get("silhouette"),
+        "projection_stability": projection.get("stability"),
+        "projection_selected_k": projection.get("selected_k"),
+        "projection_source_sha256": (projection.get("meta") or {}).get("source_sha256"),
+        "projection_pca_components": len(projection.get("components", [])),
         "cluster_summary_status_counts": dict(Counter(str(row.get("llm_summary_status") or "") for row in cluster_rows)),
         "density_cluster_summary_status_counts": dict(Counter(density_summary_statuses)),
         "sample_pairwise_similarity_mean": _safe_mean(sample_pairwise),
@@ -2272,6 +2315,8 @@ def _analyze_joint_pca(
     kb: dict[str, Any],
     kb_analysis: dict[str, Any],
     paths: _Paths,
+    *,
+    projection: dict[str, Any],
 ) -> dict[str, Any]:
     hvec = hyp_vectors.get("vectors")
     kvec = kb.get("sample_vectors")
@@ -2281,6 +2326,12 @@ def _analyze_joint_pca(
         return {
             "available": False,
             "reason": f"dimension mismatch: hypothesis={hvec.shape[1]} kb={kvec.shape[1]}",
+            "rows": [],
+        }
+    if not projection.get("available"):
+        return {
+            "available": False,
+            "reason": projection.get("error") or "missing shared RAG projection",
             "rows": [],
         }
 
@@ -2298,31 +2349,43 @@ def _analyze_joint_pca(
         kb_labels = [None] * len(kb_meta)
     cluster_info = {int(row["cluster"]): row for row in kb_analysis.get("cluster_rows", []) if row.get("cluster") is not None}
 
-    combined = np.vstack([hvec, kvec])
-    coords = PCA(n_components=2, svd_solver="randomized", random_state=13).fit_transform(combined)
-    hcoords = coords[:len(hyp_ids)]
-    kcoords = coords[len(hyp_ids):]
+    try:
+        transformed_hypotheses = transform_rag_vectors(projection, hvec)
+    except ValueError as exc:
+        return {"available": False, "reason": str(exc), "rows": []}
+    hcoords = transformed_hypotheses["coordinates"]
+    hypothesis_cluster_labels = transformed_hypotheses["labels"]
+    sample_indices = [
+        int(index) for index in (kb.get("sample_indices") or range(len(kb_meta)))
+    ]
+    if len(projection["coordinates"]) < max(sample_indices, default=-1) + 1:
+        return {
+            "available": False,
+            "reason": "shared RAG projection does not cover sampled KB chunks",
+            "rows": [],
+        }
+    kcoords = projection["coordinates"][sample_indices]
     rows = []
     for i, hid in enumerate(hyp_ids):
         rows.append(
             {
                 "kind": "hypothesis",
                 "id": hid,
-                "x": float(coords[i, 0]),
-                "y": float(coords[i, 1]),
+                "x": float(hcoords[i, 0]),
+                "y": float(hcoords[i, 1]),
                 "elo": elo_by_id.get(hid),
                 "rank": rank_by_id.get(hid),
                 "source": "",
+                "cluster": int(hypothesis_cluster_labels[i]),
             }
         )
-    offset = len(hyp_ids)
     for j, item in enumerate(kb_meta):
         rows.append(
             {
                 "kind": "kb_chunk",
-                "id": f"kb_{j}",
-                "x": float(coords[offset + j, 0]),
-                "y": float(coords[offset + j, 1]),
+                "id": f"kb_{sample_indices[j]}",
+                "x": float(kcoords[j, 0]),
+                "y": float(kcoords[j, 1]),
                 "elo": None,
                 "rank": None,
                 "source": str(item.get("source") or ""),
@@ -2349,6 +2412,8 @@ def _analyze_joint_pca(
         return f"kb_sample:{idx}"
 
     alignment_rows = []
+    shared_cluster_counts: Counter[int] = Counter()
+    top10_shared_cluster_counts: Counter[int] = Counter()
     top_cluster_counts: Counter[int] = Counter()
     top10_cluster_counts: Counter[int] = Counter()
     pca_centroid_counts: Counter[int] = Counter()
@@ -2359,6 +2424,11 @@ def _analyze_joint_pca(
         sims = kvec @ hvec[i]
         if len(sims) == 0:
             continue
+        shared_cluster = int(hypothesis_cluster_labels[i])
+        shared_cluster_counts[shared_cluster] += 1
+        rank = rank_by_id.get(hid)
+        if rank is not None and rank <= 10:
+            top10_shared_cluster_counts[shared_cluster] += 1
 
         best_by_document: dict[str, tuple[float, int]] = {}
         for idx, sim in enumerate(sims):
@@ -2376,7 +2446,6 @@ def _analyze_joint_pca(
             if label is not None:
                 cluster_counts[int(label)] += 1
         nearest_cluster = cluster_counts.most_common(1)[0][0] if cluster_counts else None
-        rank = rank_by_id.get(hid)
         if nearest_cluster is not None:
             top_cluster_counts[nearest_cluster] += 1
             if rank is not None and rank <= 10:
@@ -2409,6 +2478,7 @@ def _analyze_joint_pca(
                     top10_pca_point_counts[pca_point_cluster] += 1
 
         info = cluster_info.get(nearest_cluster if nearest_cluster is not None else -1, {})
+        shared_info = cluster_info.get(shared_cluster, {})
         pca_centroid_info = cluster_info.get(
             pca_centroid_cluster if pca_centroid_cluster is not None else -1, {}
         )
@@ -2418,6 +2488,10 @@ def _analyze_joint_pca(
                 "hypothesis_id": hid,
                 "rank": rank,
                 "elo": elo_by_id.get(hid),
+                "shared_kb_cluster": shared_cluster,
+                "shared_kb_cluster_label": shared_info.get("llm_label")
+                or shared_info.get("deterministic_label"),
+                "shared_kb_cluster_summary": shared_info.get("llm_summary"),
                 "nearest_kb_cluster": nearest_cluster,
                 "nearest_kb_cluster_label": info.get("llm_label") or info.get("deterministic_label"),
                 "nearest_kb_cluster_summary": info.get("llm_summary"),
@@ -2445,6 +2519,8 @@ def _analyze_joint_pca(
             "hypothesis_points": len(hyp_ids),
             "kb_points": len(kb_meta),
             "embedding_dim": int(hvec.shape[1]),
+            "shared_kb_cluster_counts": dict(shared_cluster_counts),
+            "top10_shared_kb_cluster_counts": dict(top10_shared_cluster_counts),
             "hypothesis_nearest_kb_cluster_counts": dict(top_cluster_counts),
             "top10_nearest_kb_cluster_counts": dict(top10_cluster_counts),
             "hypothesis_nearest_kb_document_cluster_counts": dict(top_cluster_counts),
@@ -2533,6 +2609,7 @@ def _write_tables(
     ):
         (paths.tables / deprecated).unlink(missing_ok=True)
     _write_csv(paths.tables / "kb_clusters.csv", kb_analysis.get("cluster_rows", []))
+    _write_csv(paths.tables / "kb_pca.csv", kb_analysis.get("pca_rows", []))
     kb_umap = (((kb_analysis.get("density") or {}).get("methods") or {}).get("umap") or {})
     _write_csv(paths.tables / "kb_umap_hdbscan.csv", kb_umap.get("rows", []))
     _write_csv(paths.tables / "kb_umap_hdbscan_clusters.csv", kb_umap.get("cluster_rows", []))
@@ -2544,6 +2621,8 @@ def _write_tables(
                 "hypothesis_id": row.get("hypothesis_id"),
                 "rank": row.get("rank"),
                 "elo": row.get("elo"),
+                "shared_pca50_kb_cluster": row.get("shared_kb_cluster"),
+                "shared_pca50_kb_label": row.get("shared_kb_cluster_label"),
                 "joint_pca_nearest_centroid_cluster": row.get("joint_pca_nearest_centroid_cluster"),
                 "joint_pca_nearest_centroid_label": row.get("joint_pca_nearest_centroid_label"),
                 "joint_pca_nearest_centroid_distance": row.get("joint_pca_nearest_centroid_distance"),
@@ -2848,7 +2927,7 @@ def _write_figures(
     _write_joint_pca_svg(
         paths.figures / "kb_hypothesis_joint_pca.svg",
         joint_pca.get("rows", []),
-        title="Joint PCA of Hypotheses and RAG KB Chunks",
+        title="Hypotheses in the Shared RAG KB PCA Frame",
     )
     (paths.figures / "kb_hypothesis_joint_umap_hdbscan.svg").unlink(missing_ok=True)
 
@@ -2921,10 +3000,11 @@ def _render_report(
         ),
         "",
         (
-            "For PCA analyses, clustering is performed in the source embedding space for semantic grouping "
-            "and plotted in PCA space for visualization. The hypothesis section additionally reports an "
-            "explicit KMeans clustering of the 2D PCA projection. KB cluster labels and summaries, including "
-            "the UMAP/HDBSCAN density clusters, are generated from representative chunks using the configured "
+            "The RAG KB uses one persisted all-chunk projection shared with the live UI: normalized source "
+            "embeddings are reduced to 50 PCA components without whitening, normalized again, and clustered "
+            "there. The first two components are used only for visualization, and hypothesis overlays are "
+            "transformed through the same KB-fitted PCA model. KB cluster labels and summaries, including the "
+            "separate UMAP/HDBSCAN density view, are generated from representative chunks using the configured "
             "local LLM when available, with deterministic top-term labels as a fallback."
         ),
         "",
@@ -2967,8 +3047,9 @@ def _render_report(
             f"across {_counter_sentence(sources.get('search_counts', {}))}. The RAG manifest contains "
             f"{sources.get('rag_manifest_count', 0)} unique paper records, of which "
             f"{sources.get('rag_indexed_count', 0)} are marked indexed. The stored KB contains "
-            f"{kb.get('chunks', 0):,} chunks; this report sampled {kb.get('sample_chunks', 0):,} chunks "
-            f"for PCA/diversity metrics."
+            f"{kb.get('chunks', 0):,} chunks; the shared PCA and KMeans models were fitted on all chunks, "
+            f"and this report retained {kb.get('sample_chunks', 0):,} chunks for rendered and sampled "
+            f"diversity diagnostics."
         ),
         "",
         (
@@ -3222,8 +3303,11 @@ def _render_report(
         (
             f"The sampled KB had {kb.get('unique_documents_in_sample', 0)} unique source documents "
             f"and document entropy {_fmt_float(kb.get('sample_document_entropy'), 2)}. "
-            f"KMeans over sampled KB chunk embeddings produced {kb.get('cluster_count', 0)} clusters "
-            f"with cosine silhouette {_fmt_float(kb.get('silhouette_cosine'), 3)}."
+            f"Stability-aware KMeans in the normalized PCA-{kb.get('projection_pca_components', 0)} space "
+            f"selected {kb.get('projection_selected_k', kb.get('cluster_count', 0))} clusters with sampled "
+            f"silhouette {_fmt_float(kb.get('projection_silhouette'), 3)} and stability "
+            f"{_fmt_float(kb.get('projection_stability'), 3)}. The independent full-embedding cosine "
+            f"silhouette diagnostic was {_fmt_float(kb.get('silhouette_cosine'), 3)}."
         ),
         "",
         "![KB PCA](figures/kb_pca.svg)",
@@ -3280,19 +3364,23 @@ def _render_report(
         ),
         "",
         (
-            "The joint PCA below projects hypothesis embeddings and sampled KB chunks together. KB chunks are "
-            "colored by the KB clusters above; hypotheses are colored by Elo with an explicit colorbar. Hypothesis "
-            "markers are semi-transparent and drawn from lower to higher Elo so higher-scoring hypotheses remain "
-            "visible. The table below is ordered around the 2D joint-PCA visual geometry: its primary KB-cluster "
-            "assignment is the nearest KB-cluster centroid in this joint projection. The high-dimensional embedding-space "
-            "top-25-document KB-neighbor assignment is retained as a separate diagnostic because it can legitimately disagree "
-            "with the 2D projection."
+            "The shared-frame PCA below uses the KB-fitted projection unchanged and transforms hypothesis "
+            "embeddings into it. KB chunks are colored by the persisted KB clusters above; hypotheses are colored "
+            "by Elo with an explicit colorbar. Hypothesis markers are semi-transparent and drawn from lower to "
+            "higher Elo so higher-scoring hypotheses remain visible. The table's primary assignment is the same "
+            "normalized PCA-50 KMeans prediction used for hypothesis overlays in the UI. Nearest cluster centroid "
+            "in the fixed 2D KB frame and high-dimensional top-25-document neighbors are retained as separate "
+            "diagnostics because both can legitimately disagree with the PCA-50 cluster model."
         ),
         "",
-        "![Joint PCA of hypotheses and KB chunks](figures/kb_hypothesis_joint_pca.svg)",
+        "![Hypotheses in the shared RAG KB PCA frame](figures/kb_hypothesis_joint_pca.svg)",
         "",
         (
-            f"Joint-PCA visual alignment: across all hypotheses, nearest-centroid counts were "
+            f"Shared PCA-50 cluster assignments across all hypotheses were "
+            f"{_cluster_count_sentence(joint_metrics.get('shared_kb_cluster_counts'), kb_cluster_by_id)}. "
+            f"For the final top 10, shared PCA-50 assignments were "
+            f"{_cluster_count_sentence(joint_metrics.get('top10_shared_kb_cluster_counts'), kb_cluster_by_id)}. "
+            f"Across all hypotheses, 2D nearest-centroid counts were "
             f"{_cluster_count_sentence(joint_metrics.get('joint_pca_centroid_cluster_counts'), kb_cluster_by_id)}. "
             f"For the final top 10, 2D joint-PCA nearest-centroid counts were "
             f"{_cluster_count_sentence(joint_metrics.get('top10_joint_pca_centroid_cluster_counts'), kb_cluster_by_id)}. "
@@ -3308,9 +3396,9 @@ def _render_report(
                 "rank",
                 "hypothesis",
                 "Elo",
-                "2D joint-PCA KB cluster",
-                "2D label",
-                "2D centroid dist",
+                "shared PCA-50 cluster",
+                "shared label",
+                "2D nearest cluster",
                 "embedding top-25 docs cluster",
                 "embedding label",
                 "top25 doc sim",
@@ -3320,9 +3408,9 @@ def _render_report(
                     row.get("rank"),
                     _truncate(str(row.get("hypothesis_id") or ""), 22),
                     _fmt_float(row.get("elo"), 1),
+                    row.get("shared_kb_cluster"),
+                    row.get("shared_kb_cluster_label"),
                     row.get("joint_pca_nearest_centroid_cluster"),
-                    row.get("joint_pca_nearest_centroid_label"),
-                    _fmt_float(row.get("joint_pca_nearest_centroid_distance"), 3),
                     row.get("nearest_kb_cluster"),
                     row.get("nearest_kb_cluster_label"),
                     _fmt_float(row.get("mean_top25_kb_document_similarity"), 3),
@@ -3353,6 +3441,7 @@ def _render_report(
         "- `tables/elo_rank_stability.csv`: Kendall/Spearman/Jaccard agreement against the final ranking by milestone.",
         "- `tables/elo_calibration.csv`: empirical favorite score vs theoretical Elo expectation by Elo-gap bin.",
         "- `tables/kb_clusters.csv`: KB cluster labels, summaries, and representative text snippets.",
+        "- `tables/kb_pca.csv`: sampled KB chunks in the persisted PCA frame shared with the live UI.",
         "- `tables/kb_umap_hdbscan.csv`: UMAP coordinates and HDBSCAN labels for sampled KB chunks.",
         "- `tables/kb_umap_hdbscan_clusters.csv`: density-cluster diagnostics and LLM summaries for sampled KB chunks.",
         "- `tables/hypothesis_umap.csv`: UMAP coordinates for final hypotheses colored by Elo in the report.",

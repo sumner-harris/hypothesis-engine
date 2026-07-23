@@ -4,11 +4,11 @@ Hypothesis Engine is a Python package and CLI for running a multi-agent research
 
 The distribution and CLI command are named `hypothesis-engine`; the Python import package is `hypothesis_engine`.
 
-This repository intentionally does not include run data, databases, generated analysis reports, downloaded papers, FAISS indexes, or benchmark result artifacts. Those are produced locally under `data/` when you run sessions.
+This repository intentionally does not include run data, databases, generated analysis reports, downloaded papers, or FAISS indexes. Those are produced locally under `data/` when you run sessions.
 
 ## What It Does
 
-A session starts from a natural-language research goal and runs a durable SQLite-backed agent loop. The system can be driven from the CLI or the FastAPI web UI. Sessions can be paused, resumed, inspected, analyzed, and benchmarked.
+A session starts from a natural-language research goal and runs a durable SQLite-backed agent loop. The system can be driven from the CLI or the FastAPI web UI. Sessions can be paused, resumed, inspected, and analyzed.
 
 ## Writing A Good Session Prompt
 
@@ -148,8 +148,6 @@ ranking_debate = "gpt-5"
 ranking_priority = "gpt-5"
 metareview_feedback = "gpt-5-mini"
 metareview_final = "gpt-5"
-classifier = "gpt-5-mini"
-judge = "gpt-5-mini"
 
 [embeddings]
 provider = "openai"
@@ -170,6 +168,7 @@ provider = "openai_compatible"
 
 [llm.openai]
 base_url = "http://localhost:8000/v1"
+reasoning_effort = "high"
 
 [models]
 generation = "your-local-model"
@@ -181,11 +180,20 @@ ranking_priority = "your-local-model"
 metareview_feedback = "your-local-model"
 metareview_final = "your-local-model"
 parse_goal = "your-local-model"
-classifier = "your-local-model"
-judge = "your-local-model"
+
+[embeddings]
+provider = "openai_compatible"
+model = "your-local-embedding-model"
+dim = 4096
+base_url = "http://localhost:8001/v1"
 ```
 
 Every model entry should be valid for the selected provider. The config deep-merges, so omitted model keys keep the defaults from `config/default.toml`.
+When `[llm.openai].reasoning_effort` is set, that value is sent with every
+OpenAI or OpenAI-compatible chat-completions request. The configured default
+is `high`; the compatible server must support that request field.
+Embeddings support exactly two modes: `openai_compatible` for a configured
+local or private endpoint, and `openai` with `text-embedding-3-large`.
 
 ### Customize Initial Discovery Lenses
 
@@ -209,9 +217,9 @@ hypothesis-engine init
 hypothesis-engine tools list
 ```
 
-`init` creates `data/`, applies SQLite migrations, and reports whether the configured LLM provider has the required key or is keyless. Runtime outputs are local:
+`init` creates `data/`, initializes the SQLite schema, and reports whether the configured LLM provider has the required key or is keyless. Runtime outputs are local:
 
-- `data/hypothesis_engine.db`: sessions, tasks, hypotheses, reviews, tournaments, transcripts, bench rows
+- `data/hypothesis_engine.db`: sessions, tasks, hypotheses, reviews, tournaments, transcripts
 - `data/artifacts/<session_id>/`: JSON artifacts, final overview, analysis outputs
 - `data/vectors/<session_id>/`: hypothesis FAISS index and metadata
 - `data/rag/<session_id>/`: optional RAG KB PDFs, manifest, FAISS index, metadata
@@ -484,33 +492,6 @@ The analysis reads SQLite rows, transcript artifacts, search/fetch artifacts, hy
 
 Analysis outputs are local run artifacts and should not be committed.
 
-## Benchmarks
-
-`hypothesis-engine bench` compares model candidates on a shared goal. Each candidate can run through the full Generation pipeline or as a direct single-call baseline. A fixed judge model runs the cross-candidate tournament.
-
-Examples:
-
-```bash
-hypothesis-engine bench "Identify hypotheses about X" \
-  -c local-a=openai_compatible:your-local-model \
-  -c openai-a=openai:gpt-5 \
-  --judge openai:gpt-5-mini \
-  --n 2 \
-  --matches 2
-
-hypothesis-engine bench --preset paper-aml --n 3 --matches 2
-hypothesis-engine bench --preset paper-aml-vs-raw --n 1
-hypothesis-engine bench --preset frontier-aml-vs-raw --n 1
-```
-
-Bench rows are stored in `data/hypothesis_engine.db` and JSON artifacts are written under `data/artifacts/<bench_session_id>/bench/`. The helper script can render a local markdown report:
-
-```bash
-python scripts/build_bench_report.py --db data/hypothesis_engine.db --out docs/BENCH_RESULTS.md
-```
-
-That generated report is not part of the published branch.
-
 ## Testing
 
 ```bash
@@ -526,11 +507,10 @@ The GitHub workflow runs the unit test suite on pushes and pull requests.
 ```text
 hypothesis_engine/agents/        supervisor, generation, literature_review, reflection, ranking, evolution, proximity, meta-review
 hypothesis_engine/analysis/      post-hoc session analysis report builder
-hypothesis_engine/bench/         model benchmark runner, presets, gold-set scoring
 hypothesis_engine/capabilities/  versioned capability models, catalog search, workflow validation
 hypothesis_engine/llm/           provider adapters, routing, retries, token/cost accounting
 hypothesis_engine/orchestrator/  termination, events, feedback actions, Elo helpers
-hypothesis_engine/storage/       SQLite schema, migrations, repositories, artifact helpers
+hypothesis_engine/storage/       SQLite schema, repositories, artifact helpers
 hypothesis_engine/tools/         built-in literature/search/fetch/RAG/science-skill tools
 hypothesis_engine/vectors/       embedding clients and FAISS store
 hypothesis_engine/web/           FastAPI UI, templates, static JS/CSS
@@ -544,7 +524,7 @@ scripts/                    local report/maintenance scripts
 - The committed branch is source-only. Runtime artifacts live under `data/` and are ignored.
 - Default budgets in `config/default.toml` are permissive for local model servers. Set realistic `budget_usd`, `wall_clock_seconds`, and `concurrency` values when using paid APIs.
 - Function/tool calling is required for normal agent operation. Providers or local servers that do not support tool calls will fail during structured record steps.
-- Embeddings fall back to a deterministic hash embedder if no configured embedding backend is available. That keeps runs alive but weakens semantic deduplication and clustering.
+- Embeddings do not silently fall back to another algorithm. Configure either an OpenAI-compatible endpoint or OpenAI `text-embedding-3-large`; unavailable embeddings make vector-dependent operations skip or fail explicitly.
 - `config/a100_remote.toml` is environment-specific. Treat it as a template for a remote high-throughput setup, not as a portable default.
 
 ## License

@@ -20,7 +20,6 @@ from hypothesis_engine.models import (
     TournamentMatch,
 )
 from hypothesis_engine.orchestrator.feedback_actions import apply_human_feedback_actions
-from hypothesis_engine.storage import db as db_mod
 from hypothesis_engine.storage.repos import (
     feedback as fb_repo,
 )
@@ -118,36 +117,6 @@ async def test_hypothesis_citations_roundtrip(conn) -> None:
     assert citation.excerpt == "Short supporting excerpt."
     assert citation.doi == "10.1234/example"
     assert citation.year == 2024
-
-
-@pytest.mark.asyncio
-async def test_hypothesis_citation_backfill_from_artifact(conn, tmp_cfg) -> None:
-    s = await _make_session(conn, sid="ses_citation_backfill")
-    hid = ids.hypothesis_id(s.id, "generation/literature", "h backfills source")
-    rel_path = f"artifacts/{s.id}/hypotheses/{hid}.json"
-    path = tmp_cfg.data_dir / rel_path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        '{"strategy":"literature","record":{"citations":[{"title":"Backfilled paper","url":"https://example.test/backfill","year":2025}]}}',
-        encoding="utf-8",
-    )
-    await hyp_repo.insert(conn, Hypothesis(
-        id=hid, session_id=s.id, created_at=_now(),
-        created_by="generation", strategy="literature",
-        title="backfilled", summary="h backfills source", full_text="long",
-        artifact_path=rel_path, state="draft",
-    ))
-
-    before = await hyp_repo.fetch(conn, hid)
-    assert before is not None and before.citations == []
-
-    await db_mod._backfill_hypothesis_citations(conn, tmp_cfg)
-    fetched = await hyp_repo.fetch(conn, hid)
-
-    assert fetched is not None
-    assert [(c.title, c.url, c.year) for c in fetched.citations] == [
-        ("Backfilled paper", "https://example.test/backfill", 2025)
-    ]
 
 
 @pytest.mark.asyncio

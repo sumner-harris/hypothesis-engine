@@ -8,7 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 HypothesisState = Literal[
-    "draft", "reviewed", "in_tournament", "pinned", "rejected", "quarantined", "retired"
+    "draft", "reviewed", "in_tournament", "pinned", "rejected", "retired"
 ]
 HypothesisStrategy = Literal[
     "literature", "debate", "combine", "simplify", "out_of_box", "feasibility", "assumption",

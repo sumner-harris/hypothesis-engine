@@ -15,7 +15,6 @@ import asyncio
 import contextlib
 import json
 import logging as stdlib_logging
-import pickle
 import re
 import time
 from collections.abc import AsyncIterator
@@ -31,6 +30,12 @@ from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 
 from .. import ids
+from ..analysis.rag_projection import (
+    deterministic_sample_indices,
+    load_or_build_rag_projection,
+    load_rag_metadata,
+    transform_rag_vectors,
+)
 from ..citations import render_citations_md
 from ..config import Config, load_config
 from ..logging import get_logger
@@ -313,17 +318,6 @@ def create_app(cfg: Config | None = None) -> FastAPI:
 
     # ----------------------------- API + SSE ----------------------------- #
 
-    @app.get("/api/sessions/{session_id}/metrics")
-    async def api_metrics(session_id: str) -> JSONResponse:
-        from ..obs.metrics import session_metrics_cached, to_dict
-
-        conn = await db_mod.connect(cfg)
-        try:
-            m = await session_metrics_cached(conn, session_id)
-            return JSONResponse(to_dict(m))
-        finally:
-            await conn.close()
-
     @app.get("/api/sessions/{session_id}")
     async def api_session(session_id: str) -> JSONResponse:
         conn = await db_mod.connect(cfg)
@@ -496,8 +490,26 @@ async def _ensure_analysis_report(cfg: Config, session_id: str) -> Path:
     report_path = analysis_dir / "report.md"
     html_path = analysis_dir / "report.html"
     bundle_path = analysis_dir / "analysis_report.zip"
+    metrics_path = analysis_dir / "metrics.json"
     if report_path.is_file() and html_path.is_file() and bundle_path.is_file():
-        return report_path
+        projection = await asyncio.to_thread(
+            load_or_build_rag_projection, cfg, session_id
+        )
+        projection_fingerprint = (projection.get("meta") or {}).get("source_sha256")
+        metrics = _load_json_object(metrics_path)
+        report_fingerprint = (
+            ((metrics or {}).get("rag_kb") or {}).get("projection_source_sha256")
+            if isinstance(metrics, dict)
+            else None
+        )
+        if (
+            not projection.get("available")
+            or (
+                projection_fingerprint
+                and projection_fingerprint == report_fingerprint
+            )
+        ):
+            return report_path
 
     from ..analysis import analyze_session
 
@@ -653,17 +665,23 @@ def _rag_cluster_plot_payload(
     session_id: str,
     hypotheses: list[Any],
 ) -> dict[str, Any]:
-    kb = _load_rag_sample_sync(cfg, session_id, max_points=CLUSTER_PLOT_MAX_POINTS)
-    if not kb["available"]:
-        return _cluster_unavailable("rag", kb.get("error") or "missing RAG KB vectors")
-    if len(kb["meta"]) < 2:
+    projection = load_or_build_rag_projection(cfg, session_id)
+    if not projection["available"]:
+        return _cluster_unavailable(
+            "rag", projection.get("error") or "missing RAG KB projection"
+        )
+    count = len(projection["coordinates"])
+    metadata = load_rag_metadata(cfg, session_id, count=count)
+    if len(metadata) < 2:
         return _cluster_unavailable("rag", "need at least two RAG KB chunks")
 
-    projection = _pca_kmeans_projection(kb["vectors"])
+    sample_indices = deterministic_sample_indices(count, CLUSTER_PLOT_MAX_POINTS)
     points = []
-    for coords, label, meta, sample_index in zip(
-        projection["plot"], projection["labels"], kb["meta"], kb["sample_indices"], strict=False
-    ):
+    for sample_index in sample_indices:
+        index = int(sample_index)
+        coords = projection["coordinates"][index]
+        label = projection["labels"][index]
+        meta = metadata[index] if isinstance(metadata[index], dict) else {}
         source = str(meta.get("source") or meta.get("file") or meta.get("url") or "")
         text = str(meta.get("text") or "")
         points.append(
@@ -694,11 +712,13 @@ def _rag_cluster_plot_payload(
         "generated_at": datetime.now(UTC).isoformat(),
         "metrics": {
             "points": len(points),
-            "kb_chunks": kb["count"],
+            "kb_chunks": count,
             "sampled_chunks": len(points),
-            "cluster_count": projection["cluster_count"],
+            "cluster_count": int(projection["meta"].get("cluster_count") or 0),
             "silhouette": _finite_float(projection["silhouette"]),
+            "stability": _finite_float(projection.get("stability")),
             "top_label_count": len(overlays),
+            "projection_fingerprint": projection["meta"].get("source_sha256"),
         },
         "points": points,
         "overlays": overlays,
@@ -748,72 +768,6 @@ def _load_hypothesis_vectors_sync(cfg: Config, session_id: str) -> dict[str, Any
         return {"available": False, "error": str(exc), "ids": [], "vectors": [], "count": 0}
 
 
-def _load_rag_sample_sync(cfg: Config, session_id: str, *, max_points: int) -> dict[str, Any]:
-    try:
-        import faiss
-        import numpy as np
-    except Exception as exc:
-        return {
-            "available": False,
-            "error": str(exc),
-            "vectors": [],
-            "meta": [],
-            "sample_indices": [],
-        }
-
-    rag_dir = cfg.session_rag_dir(session_id)
-    index_path = rag_dir / "kb.index"
-    meta_path = rag_dir / "kb.pkl"
-    if not index_path.exists() or not meta_path.exists():
-        return {
-            "available": False,
-            "error": "missing RAG KB index",
-            "vectors": [],
-            "meta": [],
-            "sample_indices": [],
-        }
-    try:
-        with meta_path.open("rb") as handle:
-            metadata = pickle.load(handle)
-        if not isinstance(metadata, list):
-            metadata = []
-        idx = faiss.read_index(str(index_path))
-        n = min(int(idx.ntotal), len(metadata))
-        if n <= 0:
-            return {
-                "available": False,
-                "error": "empty RAG KB index",
-                "vectors": [],
-                "meta": [],
-                "sample_indices": [],
-            }
-        sample_n = min(max(2, int(max_points)), n)
-        rng = np.random.default_rng(13)
-        sample_indices = (
-            np.sort(rng.choice(n, size=sample_n, replace=False)) if sample_n < n else np.arange(n)
-        )
-        vectors = np.vstack([idx.reconstruct(int(i)) for i in sample_indices]).astype("float32")
-        sample_meta = [
-            metadata[int(i)] if isinstance(metadata[int(i)], dict) else {} for i in sample_indices
-        ]
-        return {
-            "available": True,
-            "vectors": _normalize_rows(vectors),
-            "meta": sample_meta,
-            "sample_indices": [int(i) for i in sample_indices],
-            "count": n,
-            "dim": int(vectors.shape[1]),
-        }
-    except Exception as exc:
-        return {
-            "available": False,
-            "error": str(exc),
-            "vectors": [],
-            "meta": [],
-            "sample_indices": [],
-        }
-
-
 def _top_hypothesis_overlays(
     cfg: Config,
     session_id: str,
@@ -823,7 +777,12 @@ def _top_hypothesis_overlays(
     import numpy as np
 
     loaded = _load_hypothesis_vectors_sync(cfg, session_id)
-    if not loaded["available"] or loaded.get("dim") != kb_projection.get("dim"):
+    components = kb_projection.get("components")
+    if (
+        not loaded["available"]
+        or components is None
+        or loaded.get("dim") != int(components.shape[1])
+    ):
         return []
     by_id = {h.id: h for h in hypotheses}
     vector_by_id = {
@@ -838,13 +797,12 @@ def _top_hypothesis_overlays(
         return []
 
     vectors = np.vstack([vector_by_id[h.id] for h in ranked]).astype("float32")
-    pca = kb_projection.get("pca")
-    kmeans = kb_projection.get("kmeans")
-    if pca is None:
+    try:
+        transformed = transform_rag_vectors(kb_projection, vectors)
+    except ValueError:
         return []
-    cluster_coords = pca.transform(vectors)
-    plot = _pad_plot_coords(cluster_coords[:, :2])
-    labels = kmeans.predict(cluster_coords) if kmeans is not None else [None] * len(ranked)
+    plot = transformed["coordinates"]
+    labels = transformed["labels"]
     overlays = []
     for rank, h in enumerate(ranked, 1):
         overlays.append(
@@ -853,7 +811,7 @@ def _top_hypothesis_overlays(
                 "kind": "hypothesis",
                 "x": _finite_float(plot[rank - 1, 0]),
                 "y": _finite_float(plot[rank - 1, 1]),
-                "cluster": int(labels[rank - 1]) if labels[rank - 1] is not None else None,
+                "cluster": int(labels[rank - 1]),
                 "rank": rank,
                 "label": f"H{rank}",
                 "elo": _finite_float(h.elo),

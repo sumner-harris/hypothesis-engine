@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -52,14 +52,27 @@ class CapabilitiesCfg(BaseModel):
 
 
 class EmbeddingsCfg(BaseModel):
-    provider: str = "voyage"
-    model: str = "voyage-3-large"
-    dim: int = 1024
-    base_url: str | None = None
+    provider: Literal["openai", "openai_compatible"] = "openai_compatible"
+    model: str = "sfr-embedding-mistral"
+    dim: int = Field(default=4096, ge=1)
+    base_url: str | None = "http://localhost:8001/v1"
+
+    @model_validator(mode="after")
+    def validate_provider_contract(self) -> EmbeddingsCfg:
+        if self.provider == "openai":
+            if self.model != "text-embedding-3-large":
+                raise ValueError('provider="openai" requires model="text-embedding-3-large"')
+            if self.dim > 3072:
+                raise ValueError(
+                    'provider="openai" requires dim <= 3072 for text-embedding-3-large'
+                )
+            # Direct OpenAI must not inherit the local endpoint from the
+            # layered default configuration.
+            self.base_url = None
+        return self
 
 
 class VectorsCfg(BaseModel):
-    backend: str = "faiss"
     dedup_cosine_threshold: float = 0.92
     cluster_threshold: float = 0.15
     full_recluster_every_matches: int = 20
@@ -197,8 +210,6 @@ class ModelsCfg(BaseModel):
     metareview_feedback: str = "claude-sonnet-4-6"
     metareview_final: str = "claude-opus-4-7"
     literature_review: str = "claude-haiku-4-5-20251001"
-    classifier: str = "claude-haiku-4-5-20251001"
-    judge: str = "claude-sonnet-4-6"
 
 
 class ThinkingCfg(BaseModel):
@@ -301,15 +312,6 @@ class CodeExecCfg(BaseModel):
     local_mem_mb: int = 512
 
 
-class SafetyCfg(BaseModel):
-    enable_classifier: bool = True
-    enable_citation_verifier: bool = True
-    classifier_block_categories: list[str] = Field(
-        default_factory=lambda: ["cbrn", "csam", "weapons", "illicit_synthesis"]
-    )
-    classifier_warn_categories: list[str] = Field(default_factory=lambda: ["dual_use_bio"])
-
-
 class OpenAIProviderCfg(BaseModel):
     """OpenAI / OpenAI-compatible endpoint settings.
 
@@ -318,9 +320,13 @@ class OpenAIProviderCfg(BaseModel):
     Gemini OpenAI-compat, Ollama local, vLLM, ...). When a named preset
     such as `provider = "openrouter"` is used, this only needs to be set
     if you want to override the preset's base_url.
+
+    `reasoning_effort`, when set, is sent on every OpenAI-backed chat
+    completion request, including requests to compatible endpoints.
     """
 
     base_url: str | None = None
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
 
 
 class AnthropicProviderCfg(BaseModel):
@@ -348,9 +354,10 @@ class LLMCfg(BaseModel):
     - "anthropic" — Claude via the official Anthropic SDK (default). Cache
       breakpoints, extended thinking, and the Batch API are only available
       under this provider.
-    - "openai" — OpenAI Chat Completions. Extended reasoning is translated
-      to `reasoning_effort` for the o-series models; cache breakpoints are
-      stripped.
+    - "openai" — OpenAI Chat Completions. An explicit
+      `llm.openai.reasoning_effort` is sent with every request. Otherwise,
+      thinking budgets are translated for recognized reasoning models.
+      Cache breakpoints are stripped.
     - "openrouter" — OpenRouter (openrouter.ai). 200+ models from every
       major vendor in one place. Set OPENROUTER_API_KEY (or
       OPENAI_API_KEY). Optional attribution in [llm.openrouter].
@@ -360,9 +367,9 @@ class LLMCfg(BaseModel):
     - "groq", "together", "mistral", "ollama" — convenience presets for
       those endpoints; each reads its own API key env var
       (GROQ_API_KEY, TOGETHER_API_KEY, MISTRAL_API_KEY).
-    - "openai_compatible" — same client as `openai` but allows
-      `llm.openai.base_url` to point at any other OpenAI-compatible
-      endpoint not yet covered by a preset.
+    - "openai_compatible" — same client and reasoning-effort behavior as
+      `openai`, but allows `llm.openai.base_url` to point at any other
+      OpenAI-compatible endpoint not yet covered by a preset.
     """
 
     provider: str = "anthropic"
@@ -389,7 +396,6 @@ class Secrets(BaseSettings):
     TOGETHER_API_KEY: str = ""
     MISTRAL_API_KEY: str = ""
     OLLAMA_API_KEY: str = ""
-    VOYAGE_API_KEY: str = ""
     TAVILY_API_KEY: str = ""
     BRAVE_API_KEY: str = ""
     NCBI_API_KEY: str = ""
@@ -418,7 +424,6 @@ class Config(BaseModel):
     web_fetch: WebFetchCfg = Field(default_factory=WebFetchCfg)
     rag: RAGCfg = Field(default_factory=RAGCfg)
     code_exec: CodeExecCfg = Field(default_factory=CodeExecCfg)
-    safety: SafetyCfg = Field(default_factory=SafetyCfg)
     llm: LLMCfg = Field(default_factory=LLMCfg)
     web_ui: WebUICfg = Field(default_factory=WebUICfg)
     secrets: Secrets = Field(default_factory=Secrets)

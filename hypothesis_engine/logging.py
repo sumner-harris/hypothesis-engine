@@ -1,8 +1,8 @@
 """Structlog setup.
 
 Emits JSONL to stdout and (when a session is bound) also to
-`data/logs/session-<id>.jsonl`. The bound contextvars (session_id, task_id,
-agent, trace_id, span_id) propagate to every log line for free.
+`data/logs/session-<id>.jsonl`. Bound contextvars such as session_id, task_id,
+and agent propagate to every log line.
 """
 
 from __future__ import annotations

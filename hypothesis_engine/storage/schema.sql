@@ -1,6 +1,6 @@
 -- Modified from the original work.
--- Hypothesis Engine — SQLite schema (initial)
--- Apply via hypothesis_engine.storage.db.init_db / migrate.
+-- Hypothesis Engine — canonical SQLite schema.
+-- Applied directly by hypothesis_engine.storage.db.init_db.
 -- WAL is set at connection time, not here.
 
 PRAGMA foreign_keys = ON;
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS hypotheses (
     artifact_path   TEXT NOT NULL,
     elo             REAL,
     matches_played  INTEGER NOT NULL DEFAULT 0,
-    state           TEXT NOT NULL,                     -- draft|reviewed|in_tournament|pinned|rejected|quarantined|retired
+    state           TEXT NOT NULL,                     -- draft|reviewed|in_tournament|pinned|rejected|retired
     dedup_cluster   TEXT
 );
 CREATE INDEX IF NOT EXISTS hyp_sess_elo   ON hypotheses(session_id, elo DESC);
@@ -173,23 +173,6 @@ CREATE TABLE IF NOT EXISTS embeddings_meta (
 );
 CREATE INDEX IF NOT EXISTS emb_sess ON embeddings_meta(session_id);
 
--- Observability
-CREATE TABLE IF NOT EXISTS spans (
-    span_id         TEXT PRIMARY KEY,
-    trace_id        TEXT NOT NULL,
-    parent_span_id  TEXT,
-    session_id      TEXT,
-    task_id         TEXT,
-    name            TEXT NOT NULL,
-    started_at      INTEGER NOT NULL,
-    ended_at        INTEGER,
-    attrs_json      TEXT,
-    status          TEXT                                -- ok|error|unset
-);
-CREATE INDEX IF NOT EXISTS spans_trace ON spans(trace_id);
-CREATE INDEX IF NOT EXISTS spans_task  ON spans(task_id);
-CREATE INDEX IF NOT EXISTS spans_sess  ON spans(session_id, started_at DESC);
-
 CREATE TABLE IF NOT EXISTS events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              INTEGER NOT NULL,
@@ -201,10 +184,3 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_sess ON events(session_id, ts DESC);
 CREATE INDEX IF NOT EXISTS events_type ON events(event, ts DESC);
-
--- Schema version tracking (linear migrations)
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version     INTEGER PRIMARY KEY,
-    applied_at  TEXT NOT NULL,
-    name        TEXT NOT NULL
-);

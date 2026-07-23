@@ -65,7 +65,7 @@ def version() -> None:
 
 @app.command()
 def init(ctx: typer.Context) -> None:
-    """Create the data directory, apply migrations, sanity-check env."""
+    """Create the data directory and database schema; sanity-check env."""
     cfg, _ = ctx.obj
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     (cfg.data_dir / "artifacts").mkdir(exist_ok=True)
@@ -391,12 +391,18 @@ def analyze(
     max_kb_points: int = typer.Option(
         5000,
         "--max-kb-points",
-        help="Maximum RAG KB chunks to sample for PCA and clustering.",
+        help=(
+            "Maximum RAG KB chunks to render and use for sampled diagnostics. "
+            "The shared PCA and clustering artifact is always fitted on the full KB."
+        ),
     ),
     clusters: int = typer.Option(
         8,
         "--clusters",
-        help="KMeans cluster count for hypothesis and KB embedding summaries.",
+        help=(
+            "KMeans cluster count for hypothesis summaries. "
+            "The shared KB projection selects its cluster count by silhouette and stability."
+        ),
     ),
 ) -> None:
     """Write a post-hoc research-style analysis report for one session."""
@@ -441,231 +447,6 @@ def estimate(ctx: typer.Context) -> None:
 
     est = _estimate(cfg)
     console.print_json(data=est.to_dict())
-
-
-@app.command("eval")
-def eval_cmd(
-    ctx: typer.Context,
-    agent: str | None = typer.Argument(None, help="generation|reflection|ranking|overview"),
-    offline: bool = typer.Option(False, "--offline", help="Structural checks only; no judge."),
-) -> None:
-    """Run the eval rubric runner over the bundled fixtures."""
-    cfg, _ = ctx.obj
-    from .evals.runner import run_agent, run_all
-
-    if agent:
-        result = asyncio.run(run_agent(cfg, agent, offline=offline))
-    else:
-        result = asyncio.run(run_all(cfg, offline=offline))
-    console.print_json(data=result)
-
-
-@app.command("bench")
-def bench_cmd(
-    ctx: typer.Context,
-    goal: str | None = typer.Argument(
-        None, help="Research goal. Optional when --preset bundles a default goal."
-    ),
-    preset: str | None = typer.Option(
-        None, "--preset",
-        help=(
-            "Use a built-in candidate list. Available: "
-            "'paper' (source-paper baselines + Haiku), "
-            "'paper-aml' (same candidates + AML drug-repurposing goal + "
-            "5-drug recall scoring against the paper's answer key). "
-            "Mutually exclusive with --candidate."
-        ),
-    ),
-    candidate: list[str] = typer.Option(
-        None, "--candidate", "-c",
-        help=(
-            "Repeat: label=provider:model[@mode]. Mode is `pipeline` "
-            "(default) or `direct` (single raw LM call, no tools). e.g. "
-            "'gemini-flash=openrouter:google/gemini-3-flash-preview', "
-            "'flash-raw=openrouter:google/gemini-3-flash-preview@direct'."
-        ),
-    ),
-    n: int = typer.Option(2, "--n", help="Hypotheses per candidate."),
-    matches: int = typer.Option(2, "--matches", help="Tournament matches per pair."),
-    judge: str | None = typer.Option(
-        None, "--judge",
-        help="Judge as provider:model. Defaults to the preset's suggestion, else anthropic:claude-sonnet-4-6.",
-    ),
-    goldset_label: str | None = typer.Option(
-        None, "--goldset",
-        help=(
-            "Override the preset's gold set, or attach one to a custom-"
-            "candidate bench. Built-in labels: 'aml-repurposing-paper-5' "
-            "(broader 5-drug list) and 'aml-repurposing-paper-top3' "
-            "(strict no-prior-evidence ranked top-3). Pass 'none' to "
-            "disable gold-set scoring entirely for a preset that defaults "
-            "to one."
-        ),
-    ),
-    budget_per_candidate: float = typer.Option(
-        3.0, "--budget-per-candidate", help="USD cap per candidate."
-    ),
-    judge_budget: float = typer.Option(
-        5.0, "--judge-budget", help="USD cap for all judge calls combined."
-    ),
-) -> None:
-    """Compare N models on the same goal via a cross-Elo tournament.
-
-    Quick start (paper repro):
-      hypothesis-engine bench "Identify hypotheses about X" \\
-        --preset paper \\
-        --judge openrouter:google/gemini-3-flash-preview
-
-    Custom candidates:
-      hypothesis-engine bench "Identify hypotheses about X" \\
-        -c gemini-flash=openrouter:google/gemini-3-flash-preview \\
-        -c gpt5=openai:gpt-5 \\
-        -c opus=anthropic:claude-opus-4-7 \\
-        --judge anthropic:claude-sonnet-4-6
-    """
-    cfg, _ = ctx.obj
-    from .bench import BenchCandidate, get_preset, run_bench
-
-    if preset and candidate:
-        console.print("[red]--preset and --candidate are mutually exclusive[/red]")
-        raise typer.Exit(2)
-
-    candidates: list[BenchCandidate]
-    goldset = None
-    if preset:
-        p = get_preset(preset)
-        candidates = list(p.candidates)
-        if judge is None:
-            judge = p.suggested_judge
-        if goal is None and p.default_goal is not None:
-            goal = p.default_goal
-        if p.goldset is not None:
-            goldset = p.goldset
-        console.print(f"[dim]Using preset '{p.name}': {p.description}[/dim]")
-        for c in candidates:
-            mode_suffix = f" [{c.mode}]" if c.mode != "pipeline" else ""
-            console.print(f"[dim]  • {c.label}{mode_suffix}: {c.provider}:{c.model}[/dim]")
-    else:
-        if not candidate:
-            console.print(
-                "[red]Must provide either --preset or at least one --candidate[/red]"
-            )
-            raise typer.Exit(2)
-        candidates = []
-        for entry in candidate:
-            if "=" not in entry or ":" not in entry.split("=", 1)[1]:
-                console.print(
-                    f"[red]--candidate must look like label=provider:model[@mode], got {entry!r}[/red]"
-                )
-                raise typer.Exit(2)
-            label, rest = entry.split("=", 1)
-            # Optional @mode suffix selects pipeline vs direct.
-            mode = "pipeline"
-            if "@" in rest:
-                rest, mode = rest.rsplit("@", 1)
-                mode = mode.strip().lower()
-                if mode not in ("pipeline", "direct"):
-                    console.print(
-                        f"[red]unknown mode {mode!r} in {entry!r}; "
-                        f"use `pipeline` or `direct`[/red]"
-                    )
-                    raise typer.Exit(2)
-            provider, model = rest.split(":", 1)
-            candidates.append(BenchCandidate(
-                label=label, provider=provider, model=model, mode=mode,
-            ))
-
-    # --goldset override: take effect after preset defaults so users can
-    # swap the gold set without rewriting --candidate lists, or attach a
-    # gold set to a custom-candidate bench.
-    if goldset_label is not None:
-        from .bench import GOLDSETS
-        if goldset_label.lower() == "none":
-            goldset = None
-        elif goldset_label in GOLDSETS:
-            goldset = GOLDSETS[goldset_label]
-        else:
-            names = ", ".join(sorted(GOLDSETS))
-            console.print(
-                f"[red]unknown gold set {goldset_label!r}. "
-                f"Available: {names}, or 'none'.[/red]"
-            )
-            raise typer.Exit(2)
-
-    if goldset:
-        ent_list = ", ".join(e.name for e in goldset.entities)
-        console.print(f"[dim]  gold set: {goldset.label} ({ent_list})[/dim]")
-
-    if goal is None:
-        console.print(
-            "[red]Must provide a research goal (positional argument) or a "
-            "--preset that bundles one.[/red]"
-        )
-        raise typer.Exit(2)
-    if judge is None:
-        judge = "anthropic:claude-sonnet-4-6"
-    if ":" not in judge:
-        console.print(f"[red]--judge must look like provider:model, got {judge!r}[/red]")
-        raise typer.Exit(2)
-    judge_provider, judge_model = judge.split(":", 1)
-
-    outcome = asyncio.run(
-        run_bench(
-            cfg, goal=goal, candidates=candidates,
-            n_hyps_per_candidate=n,
-            matches_per_pair=matches,
-            judge_provider=judge_provider, judge_model=judge_model,
-            per_candidate_budget_usd=budget_per_candidate,
-            judge_budget_usd=judge_budget,
-            goldset=goldset,
-        )
-    )
-
-    has_gold = goldset is not None
-    title = f"Bench {outcome.bench_id} — {outcome.matches_played} matches"
-    if has_gold:
-        title += f" • gold-set {goldset.label} (recall / {len(goldset.entities)})"
-    tbl = Table(title=title)
-    tbl.add_column("rank", justify="right")
-    tbl.add_column("label", style="bold")
-    tbl.add_column("mode")
-    tbl.add_column("model")
-    tbl.add_column("n_hyps", justify="right")
-    tbl.add_column("W-L", justify="right")
-    tbl.add_column("mean_elo", justify="right")
-    if has_gold:
-        tbl.add_column("gold hits", justify="right")
-    tbl.add_column("$ spent", justify="right")
-    tbl.add_column("p50_ms", justify="right")
-    for i, row in enumerate(outcome.candidates, 1):
-        row_cells = [
-            str(i), row["label"],
-            row.get("mode") or "pipeline",
-            row["model"],
-            str(row["n_hypotheses"]),
-            f"{row['wins']}-{row['losses']}",
-            f"{row['mean_elo']:.0f}" if row["mean_elo"] is not None else "—",
-        ]
-        if has_gold:
-            n_hit = row.get("gold_hits") or 0
-            row_cells.append(f"{n_hit}/{len(goldset.entities)}")
-        row_cells.extend([
-            f"{row['cost_usd']:.4f}",
-            str(row["mean_latency_ms"] or "—"),
-        ])
-        tbl.add_row(*row_cells)
-    console.print(tbl)
-    console.print(f"[dim]Total cost: ${outcome.total_cost_usd:.4f}[/dim]")
-    console.print(f"[dim]Artifact: {outcome.artifact_path}[/dim]")
-
-    if has_gold:
-        # Per-candidate hit detail so you can see which specific entities surfaced.
-        for row in outcome.candidates:
-            hits = row.get("gold_hit_names") or []
-            if hits:
-                console.print(
-                    f"[dim]  {row['label']} surfaced: {', '.join(hits)}[/dim]"
-                )
 
 
 @tools_app.command("list")

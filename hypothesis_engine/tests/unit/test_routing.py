@@ -28,6 +28,14 @@ def test_thinking_only_on_opus() -> None:
         assert r.thinking_tokens == 0
 
 
+def test_openai_compatible_route_retains_thinking_budget() -> None:
+    cfg = Config()
+    cfg.llm.provider = "openai_compatible"
+    cfg.models.reflection = "gemma-4-31b-it-nvfp4"
+    r = route(cfg, "reflection", "verification")
+    assert r.thinking_tokens == cfg.thinking.reflection_verification
+
+
 def test_degrade_walks_chain_once() -> None:
     cfg = Config()
     r1 = route(cfg, "generation", "literature", degraded=False)
@@ -46,7 +54,9 @@ def test_never_degrade_modes_stay_put() -> None:
 
 def test_thinking_budget_lookup() -> None:
     cfg = Config()
-    assert thinking_budget_for(cfg, "reflection.verification") == cfg.thinking.reflection_verification
+    assert (
+        thinking_budget_for(cfg, "reflection.verification") == cfg.thinking.reflection_verification
+    )
     assert thinking_budget_for(cfg, "ranking.pairwise") == cfg.thinking.ranking_pairwise
     assert thinking_budget_for(cfg, "made_up.mode") == 0
 
@@ -59,8 +69,10 @@ def test_cache_reads_are_cheaper_than_uncached_input() -> None:
     )
     mostly_cached = estimate_cost_usd(
         model="claude-opus-4-7",
-        input_tokens=2_000, output_tokens=1_000,
-        cache_read=8_000, cache_write=0,
+        input_tokens=2_000,
+        output_tokens=1_000,
+        cache_read=8_000,
+        cache_write=0,
     )
     assert mostly_cached < all_uncached
 
@@ -72,7 +84,8 @@ def test_unknown_flash_model_prices_as_flash_not_sonnet() -> None:
     """
     flash_cost = estimate_cost_usd(
         model="google/gemini-3-flash-preview",
-        input_tokens=1_000_000, output_tokens=1_000_000,
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
     )
     # flash-tier output is ~$2.5/M, so 1M+1M tokens ≈ $2.80.
     # sonnet fallback would be ~$18.
@@ -82,7 +95,8 @@ def test_unknown_flash_model_prices_as_flash_not_sonnet() -> None:
 def test_unknown_mini_model_uses_mini_tier_pricing() -> None:
     cost = estimate_cost_usd(
         model="some-provider/gpt-7-mini-preview",
-        input_tokens=1_000_000, output_tokens=1_000_000,
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
     )
     # mini tier: 1.1 input + 4.4 output per million ≈ $5.5
     # gpt-5 tier would be ~$25, sonnet ~$18
@@ -94,7 +108,8 @@ def test_unknown_opus_class_model_uses_opus_pricing() -> None:
     NOT silently price as a sonnet (and risk underbudgeting)."""
     cost = estimate_cost_usd(
         model="anthropic/claude-99-opus-experimental",
-        input_tokens=1_000_000, output_tokens=1_000_000,
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
     )
     # opus tier: 15 + 75 = $90/M+M
     assert cost > 50.0
@@ -105,7 +120,8 @@ def test_known_model_takes_precedence_over_family_hint() -> None:
     override the explicit entry."""
     flash_known = estimate_cost_usd(
         model="gemini-3-flash-preview",
-        input_tokens=1_000_000, output_tokens=1_000_000,
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
     )
     assert 2.5 < flash_known < 3.5
 
@@ -115,7 +131,8 @@ def test_completely_unknown_model_uses_conservative_fallback() -> None:
     route doesn't accidentally run unbounded on a cheap fallback."""
     cost = estimate_cost_usd(
         model="totally-novel-vendor/unrecognized-model-7",
-        input_tokens=1_000_000, output_tokens=1_000_000,
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
     )
     # Sonnet-class fallback: 3 + 15 = $18/M+M
     assert 15.0 < cost < 25.0

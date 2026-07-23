@@ -19,11 +19,11 @@ from ..capabilities.models import CapabilityGroundingIssue, CapabilityGroundingR
 from ..capabilities.prompting import capability_application_evidence_requirement
 from ..config import Config
 from ..llm.anthropic_client import AgentCallSpec, CachedBlock, CallContext
+from ..llm.prompt_boundaries import quote_hypothesis
 from ..llm.prompts import render
 from ..llm.routing import route
 from ..llm.tool_loop import ToolLoopExhausted, run_tool_loop
 from ..models import Hypothesis, Review, ReviewScores, Task, TaskResult
-from ..safety.quoting import quote_hypothesis
 from ..storage.artifacts import read_json, write_json
 from ..storage.repos import hypotheses as hyp_repo
 from ..storage.repos import reviews as rev_repo

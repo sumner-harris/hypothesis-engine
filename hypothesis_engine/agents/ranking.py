@@ -24,11 +24,11 @@ import numpy as np
 
 from .. import ids
 from ..llm.anthropic_client import AgentCallSpec, CachedBlock, CallContext
+from ..llm.prompt_boundaries import quote_hypothesis
 from ..llm.prompts import render
 from ..llm.routing import route
 from ..logging import get_logger
 from ..models import Hypothesis, Task, TaskResult, TournamentMatch
-from ..safety.quoting import quote_hypothesis
 from ..storage.repos import (
     hypotheses as hyp_repo,
 )

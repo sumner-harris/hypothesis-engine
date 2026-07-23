@@ -7,7 +7,6 @@ from . import (  # noqa: F401
     hypotheses,
     reviews,
     sessions,
-    spans,
     tasks,
     tournaments,
     transcripts,

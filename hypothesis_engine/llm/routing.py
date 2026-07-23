@@ -20,54 +20,129 @@ PRICE_TABLE: dict[str, dict[str, float]] = {
     "gemma-4-26b-a4b-nvfp4": {"input": 0.0, "output": 0.0, "cache_write": 0.0, "cache_read": 0.0},
     "gemma-4-31b-it-nvfp4": {"input": 0.0, "output": 0.0, "cache_write": 0.0, "cache_read": 0.0},
     # Anthropic
-    "claude-opus-4-7":            {"input": 15.0,  "output": 75.0,  "cache_write": 18.75, "cache_read": 1.5},
-    "claude-sonnet-4-6":          {"input":  3.0,  "output": 15.0,  "cache_write":  3.75, "cache_read": 0.3},
-    "claude-haiku-4-5-20251001":  {"input":  1.0,  "output":  5.0,  "cache_write":  1.25, "cache_read": 0.1},
-    "anthropic/claude-haiku-4.5": {"input":  1.0,  "output":  5.0,  "cache_write":  1.25, "cache_read": 0.1},
-    "anthropic/claude-3.5-haiku": {"input":  0.8,  "output":  4.0,  "cache_write":  1.0,  "cache_read": 0.08},
+    "claude-opus-4-7": {"input": 15.0, "output": 75.0, "cache_write": 18.75, "cache_read": 1.5},
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_read": 0.3},
+    "claude-haiku-4-5-20251001": {
+        "input": 1.0,
+        "output": 5.0,
+        "cache_write": 1.25,
+        "cache_read": 0.1,
+    },
+    "anthropic/claude-haiku-4.5": {
+        "input": 1.0,
+        "output": 5.0,
+        "cache_write": 1.25,
+        "cache_read": 0.1,
+    },
+    "anthropic/claude-3.5-haiku": {
+        "input": 0.8,
+        "output": 4.0,
+        "cache_write": 1.0,
+        "cache_read": 0.08,
+    },
     # OpenAI (approximate; verify on platform.openai.com/docs/pricing)
-    "gpt-5":                      {"input":  5.0,  "output": 20.0,  "cache_write":  5.0,  "cache_read": 0.5},
-    "gpt-4.1":                    {"input":  2.0,  "output":  8.0,  "cache_write":  2.0,  "cache_read": 0.2},
-    "gpt-4o":                     {"input":  2.5,  "output": 10.0,  "cache_write":  2.5,  "cache_read": 0.25},
-    "gpt-4o-mini":                {"input":  0.15, "output":  0.6,  "cache_write":  0.15, "cache_read": 0.075},
-    "o3":                         {"input":  2.0,  "output":  8.0,  "cache_write":  2.0,  "cache_read": 0.5},
-    "o3-mini":                    {"input":  1.1,  "output":  4.4,  "cache_write":  1.1,  "cache_read": 0.55},
-    "o1":                         {"input": 15.0,  "output": 60.0,  "cache_write": 15.0,  "cache_read": 7.5},
-    "o1-mini":                    {"input":  3.0,  "output": 12.0,  "cache_write":  3.0,  "cache_read": 1.5},
+    "gpt-5": {"input": 5.0, "output": 20.0, "cache_write": 5.0, "cache_read": 0.5},
+    "gpt-4.1": {"input": 2.0, "output": 8.0, "cache_write": 2.0, "cache_read": 0.2},
+    "gpt-4o": {"input": 2.5, "output": 10.0, "cache_write": 2.5, "cache_read": 0.25},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.6, "cache_write": 0.15, "cache_read": 0.075},
+    "o3": {"input": 2.0, "output": 8.0, "cache_write": 2.0, "cache_read": 0.5},
+    "o3-mini": {"input": 1.1, "output": 4.4, "cache_write": 1.1, "cache_read": 0.55},
+    "o1": {"input": 15.0, "output": 60.0, "cache_write": 15.0, "cache_read": 7.5},
+    "o1-mini": {"input": 3.0, "output": 12.0, "cache_write": 3.0, "cache_read": 1.5},
     # Google (native short names AND OpenAI-compat short names)
-    "gemini-3-pro":               {"input":  2.0,  "output": 12.0,  "cache_write":  2.0,  "cache_read": 0.5},
-    "gemini-3-pro-preview":       {"input":  2.0,  "output": 12.0,  "cache_write":  2.0,  "cache_read": 0.5},
-    "gemini-3-flash":             {"input":  0.3,  "output":  2.5,  "cache_write":  0.3,  "cache_read": 0.075},
-    "gemini-3-flash-preview":     {"input":  0.3,  "output":  2.5,  "cache_write":  0.3,  "cache_read": 0.075},
-    "gemini-2.5-pro":             {"input":  1.25, "output": 10.0,  "cache_write":  1.25, "cache_read": 0.3},
-    "gemini-2.5-flash":           {"input":  0.3,  "output":  2.5,  "cache_write":  0.3,  "cache_read": 0.075},
-    "gemini-2.5-flash-lite":      {"input":  0.1,  "output":  0.4,  "cache_write":  0.1,  "cache_read": 0.025},
-    "gemini-1.5-pro":             {"input":  1.25, "output":  5.0,  "cache_write":  1.25, "cache_read": 0.3},
-    "gemini-1.5-flash":           {"input":  0.075,"output":  0.3,  "cache_write":  0.075,"cache_read": 0.02},
+    "gemini-3-pro": {"input": 2.0, "output": 12.0, "cache_write": 2.0, "cache_read": 0.5},
+    "gemini-3-pro-preview": {"input": 2.0, "output": 12.0, "cache_write": 2.0, "cache_read": 0.5},
+    "gemini-3-flash": {"input": 0.3, "output": 2.5, "cache_write": 0.3, "cache_read": 0.075},
+    "gemini-3-flash-preview": {
+        "input": 0.3,
+        "output": 2.5,
+        "cache_write": 0.3,
+        "cache_read": 0.075,
+    },
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.0, "cache_write": 1.25, "cache_read": 0.3},
+    "gemini-2.5-flash": {"input": 0.3, "output": 2.5, "cache_write": 0.3, "cache_read": 0.075},
+    "gemini-2.5-flash-lite": {"input": 0.1, "output": 0.4, "cache_write": 0.1, "cache_read": 0.025},
+    "gemini-1.5-pro": {"input": 1.25, "output": 5.0, "cache_write": 1.25, "cache_read": 0.3},
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.3, "cache_write": 0.075, "cache_read": 0.02},
     # Mistral, Meta (via providers)
-    "mistral-large-latest":       {"input":  2.0,  "output":  6.0,  "cache_write":  2.0,  "cache_read": 0.2},
-    "llama-3.3-70b":              {"input":  0.6,  "output":  0.6,  "cache_write":  0.6,  "cache_read": 0.6},
+    "mistral-large-latest": {"input": 2.0, "output": 6.0, "cache_write": 2.0, "cache_read": 0.2},
+    "llama-3.3-70b": {"input": 0.6, "output": 0.6, "cache_write": 0.6, "cache_read": 0.6},
     # OpenRouter passes through the upstream provider's price; common routes:
-    "anthropic/claude-opus-4-7":      {"input": 15.0,  "output": 75.0,  "cache_write": 18.75, "cache_read": 1.5},
-    "anthropic/claude-sonnet-4-6":    {"input":  3.0,  "output": 15.0,  "cache_write":  3.75, "cache_read": 0.3},
-    "anthropic/claude-3.5-sonnet":    {"input":  3.0,  "output": 15.0,  "cache_write":  3.75, "cache_read": 0.3},
-    "openai/gpt-5":                   {"input":  5.0,  "output": 20.0,  "cache_write":  5.0,  "cache_read": 0.5},
-    "openai/gpt-4o":                  {"input":  2.5,  "output": 10.0,  "cache_write":  2.5,  "cache_read": 0.25},
-    "openai/gpt-4o-mini":             {"input":  0.15, "output":  0.6,  "cache_write":  0.15, "cache_read": 0.075},
-    "openai/o1":                      {"input": 15.0,  "output": 60.0,  "cache_write": 15.0,  "cache_read": 7.5},
-    "openai/o1-mini":                 {"input":  3.0,  "output": 12.0,  "cache_write":  3.0,  "cache_read": 1.5},
-    "openai/o3":                      {"input":  2.0,  "output":  8.0,  "cache_write":  2.0,  "cache_read": 0.5},
-    "google/gemini-2.0-flash-001":    {"input":  0.1,  "output":  0.4,  "cache_write":  0.1,  "cache_read": 0.025},
-    "google/gemini-2.0-flash-lite-001": {"input": 0.075,"output": 0.3, "cache_write":  0.075, "cache_read": 0.02},
-    "google/gemini-3-pro":            {"input":  2.0,  "output": 12.0,  "cache_write":  2.0,  "cache_read": 0.5},
-    "google/gemini-3-pro-preview":    {"input":  2.0,  "output": 12.0,  "cache_write":  2.0,  "cache_read": 0.5},
-    "google/gemini-3-flash":          {"input":  0.3,  "output":  2.5,  "cache_write":  0.3,  "cache_read": 0.075},
-    "google/gemini-3-flash-preview":  {"input":  0.3,  "output":  2.5,  "cache_write":  0.3,  "cache_read": 0.075},
-    "google/gemini-2.5-pro":          {"input":  1.25, "output": 10.0,  "cache_write":  1.25, "cache_read": 0.3},
-    "google/gemini-2.5-flash":        {"input":  0.3,  "output":  2.5,  "cache_write":  0.3,  "cache_read": 0.075},
-    "google/gemini-2.5-flash-lite":   {"input":  0.1,  "output":  0.4,  "cache_write":  0.1,  "cache_read": 0.025},
-    "meta-llama/llama-3.3-70b-instruct": {"input": 0.6, "output": 0.6,  "cache_write":  0.6,  "cache_read": 0.6},
-    "mistralai/mistral-large":        {"input":  2.0,  "output":  6.0,  "cache_write":  2.0,  "cache_read": 0.2},
+    "anthropic/claude-opus-4-7": {
+        "input": 15.0,
+        "output": 75.0,
+        "cache_write": 18.75,
+        "cache_read": 1.5,
+    },
+    "anthropic/claude-sonnet-4-6": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_write": 3.75,
+        "cache_read": 0.3,
+    },
+    "anthropic/claude-3.5-sonnet": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_write": 3.75,
+        "cache_read": 0.3,
+    },
+    "openai/gpt-5": {"input": 5.0, "output": 20.0, "cache_write": 5.0, "cache_read": 0.5},
+    "openai/gpt-4o": {"input": 2.5, "output": 10.0, "cache_write": 2.5, "cache_read": 0.25},
+    "openai/gpt-4o-mini": {"input": 0.15, "output": 0.6, "cache_write": 0.15, "cache_read": 0.075},
+    "openai/o1": {"input": 15.0, "output": 60.0, "cache_write": 15.0, "cache_read": 7.5},
+    "openai/o1-mini": {"input": 3.0, "output": 12.0, "cache_write": 3.0, "cache_read": 1.5},
+    "openai/o3": {"input": 2.0, "output": 8.0, "cache_write": 2.0, "cache_read": 0.5},
+    "google/gemini-2.0-flash-001": {
+        "input": 0.1,
+        "output": 0.4,
+        "cache_write": 0.1,
+        "cache_read": 0.025,
+    },
+    "google/gemini-2.0-flash-lite-001": {
+        "input": 0.075,
+        "output": 0.3,
+        "cache_write": 0.075,
+        "cache_read": 0.02,
+    },
+    "google/gemini-3-pro": {"input": 2.0, "output": 12.0, "cache_write": 2.0, "cache_read": 0.5},
+    "google/gemini-3-pro-preview": {
+        "input": 2.0,
+        "output": 12.0,
+        "cache_write": 2.0,
+        "cache_read": 0.5,
+    },
+    "google/gemini-3-flash": {"input": 0.3, "output": 2.5, "cache_write": 0.3, "cache_read": 0.075},
+    "google/gemini-3-flash-preview": {
+        "input": 0.3,
+        "output": 2.5,
+        "cache_write": 0.3,
+        "cache_read": 0.075,
+    },
+    "google/gemini-2.5-pro": {
+        "input": 1.25,
+        "output": 10.0,
+        "cache_write": 1.25,
+        "cache_read": 0.3,
+    },
+    "google/gemini-2.5-flash": {
+        "input": 0.3,
+        "output": 2.5,
+        "cache_write": 0.3,
+        "cache_read": 0.075,
+    },
+    "google/gemini-2.5-flash-lite": {
+        "input": 0.1,
+        "output": 0.4,
+        "cache_write": 0.1,
+        "cache_read": 0.025,
+    },
+    "meta-llama/llama-3.3-70b-instruct": {
+        "input": 0.6,
+        "output": 0.6,
+        "cache_write": 0.6,
+        "cache_read": 0.6,
+    },
+    "mistralai/mistral-large": {"input": 2.0, "output": 6.0, "cache_write": 2.0, "cache_read": 0.2},
 }
 
 # Conservative fallback for any model name not in the table — we'd rather
@@ -81,26 +156,26 @@ _FALLBACK_PRICE = {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_rea
 # specific patterns first.
 _FAMILY_PRICE_HINTS: list[tuple[str, dict[str, float]]] = [
     # Flash / Lite / Mini variants — cheap tier
-    ("flash-lite", {"input": 0.1,  "output": 0.4,  "cache_write": 0.1,  "cache_read": 0.025}),
-    ("flash",      {"input": 0.3,  "output": 2.5,  "cache_write": 0.3,  "cache_read": 0.075}),
-    ("haiku",      {"input": 1.0,  "output": 5.0,  "cache_write": 1.25, "cache_read": 0.1}),
-    ("4o-mini",    {"input": 0.15, "output": 0.6,  "cache_write": 0.15, "cache_read": 0.075}),
-    ("mini",       {"input": 1.1,  "output": 4.4,  "cache_write": 1.1,  "cache_read": 0.55}),
-    ("nano",       {"input": 0.1,  "output": 0.4,  "cache_write": 0.1,  "cache_read": 0.025}),
+    ("flash-lite", {"input": 0.1, "output": 0.4, "cache_write": 0.1, "cache_read": 0.025}),
+    ("flash", {"input": 0.3, "output": 2.5, "cache_write": 0.3, "cache_read": 0.075}),
+    ("haiku", {"input": 1.0, "output": 5.0, "cache_write": 1.25, "cache_read": 0.1}),
+    ("4o-mini", {"input": 0.15, "output": 0.6, "cache_write": 0.15, "cache_read": 0.075}),
+    ("mini", {"input": 1.1, "output": 4.4, "cache_write": 1.1, "cache_read": 0.55}),
+    ("nano", {"input": 0.1, "output": 0.4, "cache_write": 0.1, "cache_read": 0.025}),
     # Mid tier
-    ("sonnet",     {"input": 3.0,  "output": 15.0, "cache_write": 3.75, "cache_read": 0.3}),
-    ("gpt-4o",     {"input": 2.5,  "output": 10.0, "cache_write": 2.5,  "cache_read": 0.25}),
-    ("gpt-4.1",    {"input": 2.0,  "output":  8.0, "cache_write": 2.0,  "cache_read": 0.2}),
-    ("gemini",     {"input": 1.25, "output": 10.0, "cache_write": 1.25, "cache_read": 0.3}),
+    ("sonnet", {"input": 3.0, "output": 15.0, "cache_write": 3.75, "cache_read": 0.3}),
+    ("gpt-4o", {"input": 2.5, "output": 10.0, "cache_write": 2.5, "cache_read": 0.25}),
+    ("gpt-4.1", {"input": 2.0, "output": 8.0, "cache_write": 2.0, "cache_read": 0.2}),
+    ("gemini", {"input": 1.25, "output": 10.0, "cache_write": 1.25, "cache_read": 0.3}),
     # High tier
-    ("opus",       {"input": 15.0, "output": 75.0, "cache_write": 18.75,"cache_read": 1.5}),
-    ("gpt-5",      {"input": 5.0,  "output": 20.0, "cache_write": 5.0,  "cache_read": 0.5}),
-    ("o3",         {"input": 2.0,  "output":  8.0, "cache_write": 2.0,  "cache_read": 0.5}),
-    ("o1",         {"input": 15.0, "output": 60.0, "cache_write": 15.0, "cache_read": 7.5}),
-    ("llama",      {"input": 0.6,  "output":  0.6, "cache_write": 0.6,  "cache_read": 0.6}),
-    ("mistral",    {"input": 2.0,  "output":  6.0, "cache_write": 2.0,  "cache_read": 0.2}),
-    ("qwen",       {"input": 0.4,  "output":  0.4, "cache_write": 0.4,  "cache_read": 0.4}),
-    ("deepseek",   {"input": 0.5,  "output":  1.5, "cache_write": 0.5,  "cache_read": 0.1}),
+    ("opus", {"input": 15.0, "output": 75.0, "cache_write": 18.75, "cache_read": 1.5}),
+    ("gpt-5", {"input": 5.0, "output": 20.0, "cache_write": 5.0, "cache_read": 0.5}),
+    ("o3", {"input": 2.0, "output": 8.0, "cache_write": 2.0, "cache_read": 0.5}),
+    ("o1", {"input": 15.0, "output": 60.0, "cache_write": 15.0, "cache_read": 7.5}),
+    ("llama", {"input": 0.6, "output": 0.6, "cache_write": 0.6, "cache_read": 0.6}),
+    ("mistral", {"input": 2.0, "output": 6.0, "cache_write": 2.0, "cache_read": 0.2}),
+    ("qwen", {"input": 0.4, "output": 0.4, "cache_write": 0.4, "cache_read": 0.4}),
+    ("deepseek", {"input": 0.5, "output": 1.5, "cache_write": 0.5, "cache_read": 0.1}),
 ]
 
 
@@ -131,7 +206,7 @@ NEVER_DEGRADE = {"reflection.verification", "metareview.final"}
 @dataclass
 class ModelRoute:
     agent: str
-    mode: str         # e.g. "generation.literature"
+    mode: str  # e.g. "generation.literature"
     model: str
     thinking_tokens: int = 0
 
@@ -140,44 +215,44 @@ def thinking_budget_for(cfg: Config, mode: str) -> int:
     """Translate a mode key into the configured thinking budget."""
     th = cfg.thinking
     return {
-        "generation.literature":   th.generation_literature,
-        "generation.debate":       th.generation_debate,
-        "reflection.full":         th.reflection_full,
+        "generation.literature": th.generation_literature,
+        "generation.debate": th.generation_debate,
+        "reflection.full": th.reflection_full,
         "reflection.verification": th.reflection_verification,
-        "reflection.observation":  th.reflection_observation,
-        "ranking.pairwise":        th.ranking_pairwise,
-        "ranking.debate":          th.ranking_debate,
-        "evolution.combine":       th.evolution_combine,
-        "evolution.out_of_box":    th.evolution_out_of_box,
-        "evolution.feasibility":   th.evolution_feasibility,
-        "evolution.simplify":      th.evolution_simplify,
-        "metareview.system":       th.metareview_feedback,
-        "metareview.final":        th.metareview_final,
+        "reflection.observation": th.reflection_observation,
+        "ranking.pairwise": th.ranking_pairwise,
+        "ranking.debate": th.ranking_debate,
+        "evolution.combine": th.evolution_combine,
+        "evolution.out_of_box": th.evolution_out_of_box,
+        "evolution.feasibility": th.evolution_feasibility,
+        "evolution.simplify": th.evolution_simplify,
+        "metareview.system": th.metareview_feedback,
+        "metareview.final": th.metareview_final,
     }.get(mode, 0)
 
 
-def route(cfg: Config, agent: str, mode: str | None = None, *, degraded: bool = False) -> ModelRoute:
+def route(
+    cfg: Config, agent: str, mode: str | None = None, *, degraded: bool = False
+) -> ModelRoute:
     """Pick a model for a given (agent, mode). If `degraded`, walk one step down."""
     m = cfg.models
     model = {
-        ("generation", "literature"):  m.generation,
-        ("generation", "debate"):      m.generation,
-        ("reflection", "full"):        m.reflection,
-        ("reflection", "verification"):m.reflection,
+        ("generation", "literature"): m.generation,
+        ("generation", "debate"): m.generation,
+        ("reflection", "full"): m.reflection,
+        ("reflection", "verification"): m.reflection,
         ("reflection", "observation"): m.reflection,
-        ("ranking", "pairwise"):       m.ranking_pairwise,
-        ("ranking", "debate"):         m.ranking_debate,
-        ("ranking", "priority"):       m.ranking_priority,
-        ("evolution", "combine"):      m.evolution,
-        ("evolution", "out_of_box"):   m.evolution,
-        ("evolution", "feasibility"):  m.evolution,
-        ("evolution", "simplify"):     m.evolution,
-        ("metareview", "system"):      m.metareview_feedback,
-        ("metareview", "final"):       m.metareview_final,
+        ("ranking", "pairwise"): m.ranking_pairwise,
+        ("ranking", "debate"): m.ranking_debate,
+        ("ranking", "priority"): m.ranking_priority,
+        ("evolution", "combine"): m.evolution,
+        ("evolution", "out_of_box"): m.evolution,
+        ("evolution", "feasibility"): m.evolution,
+        ("evolution", "simplify"): m.evolution,
+        ("metareview", "system"): m.metareview_feedback,
+        ("metareview", "final"): m.metareview_final,
         ("literature_review", "selection"): m.literature_review,
-        ("parse_goal", None):          m.parse_goal,
-        ("classifier", None):          m.classifier,
-        ("judge", None):               m.judge,
+        ("parse_goal", None): m.parse_goal,
     }.get((agent, mode), m.generation)
 
     full_mode = f"{agent}.{mode}" if mode else agent
@@ -187,8 +262,10 @@ def route(cfg: Config, agent: str, mode: str | None = None, *, degraded: bool = 
             model = DEGRADE_CHAIN[i + 1]
 
     th = thinking_budget_for(cfg, full_mode) if not degraded else 0
-    # Thinking only on Opus by convention.
-    if not model.startswith("claude-opus"):
+    # Anthropic extended thinking is enabled only for Opus here. OpenAI-backed
+    # providers retain the per-mode budget so recognized reasoning models can
+    # translate it when no explicit effort is configured.
+    if cfg.llm.provider.strip().lower() == "anthropic" and not model.startswith("claude-opus"):
         th = 0
 
     return ModelRoute(agent=agent, mode=mode or "", model=model, thinking_tokens=th)

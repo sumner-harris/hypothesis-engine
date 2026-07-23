@@ -30,7 +30,6 @@ dependencies = [
     "jinja2>=3.1.4",
     # Vectors + embeddings
     "faiss-cpu>=1.8.0",
-    "voyageai>=0.2.3",
     "numpy>=1.26.0",
     "scikit-learn>=1.5.0",
     # Optional RAG retrieval over fetched papers

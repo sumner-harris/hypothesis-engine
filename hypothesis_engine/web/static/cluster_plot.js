@@ -106,6 +106,9 @@
         if (metrics.silhouette !== null && metrics.silhouette !== undefined) {
             parts.push("silhouette " + formatMetric(metrics.silhouette, 3));
         }
+        if (data.view === "rag" && metrics.stability !== null && metrics.stability !== undefined) {
+            parts.push("stability " + formatMetric(metrics.stability, 3));
+        }
         return parts.join(" | ");
     }
 

@@ -14,7 +14,8 @@ data/
 # Local config override (user-specific provider + model + budget choices).
 # Tracked example lives in config/default.toml.
 hypothesis-engine.toml
-config/a100_remote_spark_remote.toml
+# Machine-specific Spark/Ollama configs contain private network endpoints.
+config/a100_remote_spark_remote*.toml
 
 # Vendor (large pinned external repos)
 vendor/
@@ -37,12 +38,12 @@ dist/
 
 # Local-only docs (not committed)
 docs/REIMPL_VS_PAPER.md
-docs/BENCH_RESULTS.md
 docs/*.html
 docs/*.pdf
 
 # Tests / tooling
 .pytest_cache/
+pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
 htmlcov/

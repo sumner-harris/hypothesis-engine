@@ -8,9 +8,9 @@ from typing import Any
 import aiosqlite
 
 from ..config import Config
+from ..llm.prompt_boundaries import CONTENT_BOUNDARY_PREAMBLE
 from ..llm.provider import LLMProvider
 from ..models import Task, TaskResult
-from ..safety.quoting import SAFETY_PREAMBLE
 from ..tools.registry import ToolRegistry
 
 
@@ -37,10 +37,10 @@ class BaseAgent:
     # ----------------------------- helpers ----------------------------- #
 
     def _system_prompt_header(self) -> str:
-        """Common safety preamble prepended to every agent's system prompt."""
+        """Common prompt-boundary preamble prepended to every agent system prompt."""
         return (
             f"You are the {self.name} agent in a multi-agent scientific research system. "
-            f"Operate carefully and cite your sources. {SAFETY_PREAMBLE}"
+            f"Operate carefully and cite your sources. {CONTENT_BOUNDARY_PREAMBLE}"
         )
 
     @staticmethod

@@ -39,16 +39,6 @@ async def upsert(
     await conn.commit()
 
 
-async def has_embedding(
-    conn: aiosqlite.Connection, hypothesis_id: str, model: str
-) -> bool:
-    async with conn.execute(
-        "SELECT 1 FROM embeddings_meta WHERE hypothesis_id=? AND model=?",
-        (hypothesis_id, model),
-    ) as cur:
-        return await cur.fetchone() is not None
-
-
 async def list_for_session(
     conn: aiosqlite.Connection, session_id: str
 ) -> list[dict]:
@@ -61,14 +51,3 @@ async def list_for_session(
     ) as cur:
         rows = await cur.fetchall()
     return [dict(r) for r in rows]
-
-
-async def fetch_offset(
-    conn: aiosqlite.Connection, hypothesis_id: str, model: str
-) -> int | None:
-    async with conn.execute(
-        "SELECT faiss_offset FROM embeddings_meta WHERE hypothesis_id=? AND model=?",
-        (hypothesis_id, model),
-    ) as cur:
-        row = await cur.fetchone()
-    return row["faiss_offset"] if row else None

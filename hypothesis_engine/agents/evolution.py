@@ -31,12 +31,12 @@ from ..capabilities.grounding import (
 from ..capabilities.prompting import capability_grounding_requirement
 from ..citations import merge_citation_candidates
 from ..llm.anthropic_client import AgentCallSpec, CachedBlock, CallContext
+from ..llm.prompt_boundaries import quote_hypothesis
 from ..llm.prompts import render
 from ..llm.routing import route
 from ..llm.tool_loop import ToolLoopExhausted, run_tool_loop
 from ..logging import get_logger
 from ..models import CitedPaper, Hypothesis, Task, TaskResult
-from ..safety.quoting import quote_hypothesis
 from ..storage.artifacts import write_json
 from ..storage.repos import embeddings as emb_repo
 from ..storage.repos import feedback as fb_repo
@@ -506,7 +506,7 @@ class EvolutionAgent(BaseAgent):
         duplicate_id: str,
         attempt_n: int,
     ) -> dict[str, Any] | None:
-        from ..safety.quoting import quote_untrusted
+        from ..llm.prompt_boundaries import quote_untrusted
 
         seen_block = "\n".join(f"- {url}" for url in sorted(seen_urls)[:40])
         if not seen_block:
@@ -1302,7 +1302,7 @@ def _render_study_plan_md(study_plan: Any) -> str:
 
 
 def _build_session_context(goal: str, plan, sys_feedback_text: str | None) -> str:
-    from ..safety.quoting import quote_untrusted
+    from ..llm.prompt_boundaries import quote_untrusted
 
     fb = ""
     if sys_feedback_text:

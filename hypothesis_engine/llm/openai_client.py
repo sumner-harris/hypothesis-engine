@@ -7,15 +7,16 @@ adapter classes that mimic anthropic.types.Message (so `resp.raw.content`,
 `resp.raw.stop_reason`, etc. behave the same way agents already expect).
 
 Supports:
-- OpenAI (chat.completions, function calling, reasoning_effort for o-series).
+- OpenAI (chat.completions, function calling, configurable reasoning_effort).
 - Any OpenAI-compatible endpoint via `cfg.llm.openai.base_url`: Groq,
   Together, OpenRouter, Mistral, Ollama local, Google Gemini's OpenAI-compat
   endpoint, vLLM, etc.
 
 Caveats (intentional gaps vs. AnthropicClient):
 - cache_control breakpoints are stripped — only Anthropic supports them.
-- Thinking budgets are translated to `reasoning_effort` when the model name
-  starts with "o" (o1/o3/o4 family); else dropped.
+- Explicit `[llm.openai].reasoning_effort` applies to every OpenAI-backed
+  endpoint. Without it, thinking budgets translate only for recognized
+  reasoning-model names.
 - The Anthropic Batch API has no OpenAI analogue here; BatchPool still
   routes through Anthropic.
 - `tool_result.is_error` is encoded into the tool message content; OpenAI
@@ -52,6 +53,7 @@ from .routing import estimate_cost_usd
 
 # --------------------------------------------------------------------------- #
 # Adapter types that quack like anthropic.types.Message / content blocks
+
 
 @dataclass
 class _Block:
@@ -106,6 +108,7 @@ class _Message:
 # --------------------------------------------------------------------------- #
 # OpenAIClient
 
+
 class OpenAIClient:
     """OpenAI + OpenAI-compatible provider. One instance per session."""
 
@@ -153,11 +156,7 @@ class OpenAIClient:
         # API key resolution precedence:
         #   1. explicit OPENAI_API_KEY (cfg.secrets or env)
         #   2. preset-specific env var (e.g. OPENROUTER_API_KEY, GEMINI_API_KEY)
-        api_key = (
-            cfg.secrets.OPENAI_API_KEY
-            or os.environ.get("OPENAI_API_KEY")
-            or ""
-        )
+        api_key = cfg.secrets.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY") or ""
         if not api_key and preset_api_key_env:
             api_key = (
                 getattr(cfg.secrets, preset_api_key_env, "")
@@ -169,9 +168,7 @@ class OpenAIClient:
         if not api_key and self._compat_mode:
             api_key = "compat-no-key"
         if not api_key:
-            raise RuntimeError(
-                f"no API key set ({preset_api_key_env or 'OPENAI_API_KEY'})"
-            )
+            raise RuntimeError(f"no API key set ({preset_api_key_env or 'OPENAI_API_KEY'})")
 
         # base_url precedence: explicit cfg / env > preset default.
         base_url = (
@@ -195,7 +192,10 @@ class OpenAIClient:
         *,
         est_input_tokens: int | None = None,
     ) -> AnthropicResponse:
-        request = _build_openai_request(spec)
+        request = _build_openai_request(
+            spec,
+            reasoning_effort=self._cfg.llm.openai.reasoning_effort,
+        )
 
         # Estimate + admit (same accounting as AnthropicClient).
         est_in = est_input_tokens or _rough_token_count(spec)
@@ -203,9 +203,7 @@ class OpenAIClient:
         est_cost = estimate_cost_usd(
             model=spec.route.model, input_tokens=est_in, output_tokens=est_out
         )
-        await self._budget.admit(
-            ctx.agent, est_tokens=est_in + est_out, est_usd=est_cost
-        )
+        await self._budget.admit(ctx.agent, est_tokens=est_in + est_out, est_usd=est_cost)
 
         started = datetime.now(UTC)
         t0 = time.monotonic()
@@ -218,8 +216,11 @@ class OpenAIClient:
         except BaseException:
             await self._budget.settle(
                 ctx.agent,
-                est_tokens=est_in + est_out, est_usd=est_cost,
-                actual_input_tokens=0, actual_output_tokens=0, actual_usd=0.0,
+                est_tokens=est_in + est_out,
+                est_usd=est_cost,
+                actual_input_tokens=0,
+                actual_output_tokens=0,
+                actual_usd=0.0,
             )
             raise
         finished = datetime.now(UTC)
@@ -288,7 +289,12 @@ class OpenAIClient:
 # --------------------------------------------------------------------------- #
 # Request translation: AgentCallSpec → OpenAI Chat Completions
 
-def _build_openai_request(spec: AgentCallSpec) -> dict[str, Any]:
+
+def _build_openai_request(
+    spec: AgentCallSpec,
+    *,
+    reasoning_effort: str | None = None,
+) -> dict[str, Any]:
     """Translate normalized spec to OpenAI's chat.completions request."""
     messages: list[dict[str, Any]] = []
 
@@ -347,9 +353,12 @@ def _build_openai_request(spec: AgentCallSpec) -> dict[str, Any]:
         elif kind == "none":
             request["tool_choice"] = "none"
 
-    # Extended-reasoning translation. The o-series models accept
-    # `reasoning_effort` ∈ {minimal, low, medium, high}; map from token budget.
-    if spec.route.thinking_tokens > 0 and _is_reasoning_model(spec.route.model):
+    # An explicit provider setting applies to every OpenAI-compatible model.
+    # If it is omitted, preserve the legacy token-budget translation for
+    # recognized reasoning-model names.
+    if reasoning_effort is not None:
+        request["reasoning_effort"] = reasoning_effort
+    elif spec.route.thinking_tokens > 0 and _is_reasoning_model(spec.route.model):
         request["reasoning_effort"] = _budget_to_effort(spec.route.thinking_tokens)
 
     return request
@@ -383,14 +392,16 @@ def _translate_anthropic_message(m: dict[str, Any]) -> list[dict[str, Any]]:
             elif btype == "tool_use":
                 args = block.get("input", {})
                 args_str = json.dumps(args, default=str, ensure_ascii=False)
-                tool_calls.append({
-                    "id": block.get("id") or f"call_{uuid.uuid4().hex[:12]}",
-                    "type": "function",
-                    "function": {
-                        "name": block.get("name", ""),
-                        "arguments": args_str,
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": block.get("id") or f"call_{uuid.uuid4().hex[:12]}",
+                        "type": "function",
+                        "function": {
+                            "name": block.get("name", ""),
+                            "arguments": args_str,
+                        },
+                    }
+                )
         msg: dict[str, Any] = {"role": "assistant"}
         if text_parts:
             msg["content"] = "\n".join(text_parts)
@@ -414,11 +425,13 @@ def _translate_anthropic_message(m: dict[str, Any]) -> list[dict[str, Any]]:
                     body = json.dumps(body, default=str, ensure_ascii=False)
                 if block.get("is_error"):
                     body = f"[tool error] {body}"
-                out.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": body,
-                })
+                out.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": body,
+                    }
+                )
             elif btype == "text":
                 extra_text.append(block.get("text", ""))
         if extra_text:
@@ -427,10 +440,7 @@ def _translate_anthropic_message(m: dict[str, Any]) -> list[dict[str, Any]]:
 
     # Fallback: pass through with stringified content.
     if isinstance(content, list):
-        text = " ".join(
-            b.get("text", "") if isinstance(b, dict) else str(b)
-            for b in content
-        )
+        text = " ".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
         return [{"role": role, "content": text}]
     return [{"role": role, "content": content if isinstance(content, str) else ""}]
 
@@ -467,12 +477,14 @@ def _adapt_response(raw: Any, model: str) -> _Message:
             name = getattr(fn, "name", "") if fn else ""
             args_raw = getattr(fn, "arguments", "{}") if fn else "{}"
             args_obj = _parse_tool_arguments(args_raw, model=model)
-            blocks.append(_Block(
-                type="tool_use",
-                id=getattr(tc, "id", "") or f"call_{uuid.uuid4().hex[:12]}",
-                name=name,
-                input=args_obj,
-            ))
+            blocks.append(
+                _Block(
+                    type="tool_use",
+                    id=getattr(tc, "id", "") or f"call_{uuid.uuid4().hex[:12]}",
+                    name=name,
+                    input=args_obj,
+                )
+            )
 
     usage_obj = getattr(raw, "usage", None)
     usage = _Usage(
@@ -600,18 +612,20 @@ class _GemmaArgsParser:
     def _parse_key(self) -> str:
         self._skip_ws()
         start = self.i
-        while self.i < len(self.text) and (self.text[self.i].isalnum() or self.text[self.i] in "_-"):
+        while self.i < len(self.text) and (
+            self.text[self.i].isalnum() or self.text[self.i] in "_-"
+        ):
             self.i += 1
         if self.i == start:
             raise ValueError("missing key")
-        return self.text[start:self.i]
+        return self.text[start : self.i]
 
     def _parse_string(self) -> str:
         self.i += len(_STRING_MARKER)
         end = self.text.find(_STRING_MARKER, self.i)
         if end < 0:
             raise ValueError("unterminated string")
-        value = self.text[self.i:end]
+        value = self.text[self.i : end]
         self.i = end + len(_STRING_MARKER)
         return value
 
@@ -619,7 +633,7 @@ class _GemmaArgsParser:
         start = self.i
         while self.i < len(self.text) and self.text[self.i] not in ",]}\n\r\t ":
             self.i += 1
-        raw = self.text[start:self.i].strip()
+        raw = self.text[start : self.i].strip()
         if not raw:
             raise ValueError("empty atom")
         if raw == "null":
@@ -648,6 +662,7 @@ class _GemmaArgsParser:
 
 # --------------------------------------------------------------------------- #
 # Heuristics
+
 
 def _is_reasoning_model(model: str) -> bool:
     m = model.lower()

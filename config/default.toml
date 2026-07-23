@@ -1,7 +1,7 @@
 # Modified from the original work.
 # Hypothesis Engine — default configuration
 # User overrides: ~/.hypothesis-engine/config.toml or ./hypothesis-engine.toml
-# Secrets: env vars only (ANTHROPIC_API_KEY, VOYAGE_API_KEY, TAVILY_API_KEY, ...)
+# Secrets: env vars only (ANTHROPIC_API_KEY, OPENAI_API_KEY, TAVILY_API_KEY, ...)
 
 [run]
 concurrency = 8
@@ -29,13 +29,12 @@ grounding_policy = "advisory"        # advisory | required
 max_search_results = 8
 
 [embeddings]
-provider = "openai_compatible"       # voyage | openai | openai_compatible | hash
+provider = "openai_compatible"       # openai | openai_compatible
 model = "sfr-embedding-mistral"
 dim = 4096
 base_url = "http://localhost:8001/v1"
 
 [vectors]
-backend = "faiss"
 dedup_cosine_threshold = 0.970
 cluster_threshold = 0.08
 full_recluster_every_matches = 10
@@ -149,8 +148,6 @@ ranking_priority    = "gemma-4-26b-a4b-nvfp4"
 metareview_feedback = "gemma-4-26b-a4b-nvfp4"
 metareview_final    = "gemma-4-26b-a4b-nvfp4"
 literature_review   = "gemma-4-26b-a4b-nvfp4"
-classifier          = "gemma-4-26b-a4b-nvfp4"
-judge               = "gemma-4-26b-a4b-nvfp4"
 
 [thinking]
 # per agent.mode budgets; 0 = disabled
@@ -246,17 +243,11 @@ provider = "local"               # anthropic | local
 local_cpu_seconds = 30
 local_mem_mb = 512
 
-[safety]
-enable_classifier = true
-enable_citation_verifier = true
-classifier_block_categories = ["cbrn", "csam", "weapons", "illicit_synthesis"]
-classifier_warn_categories = ["dual_use_bio"]
-
 # LLM provider selection. Choose one of:
 #   "anthropic"  — Claude via the official SDK (default). Full feature set:
 #                  cache breakpoints, extended thinking, batch API.
-#   "openai"     — OpenAI Chat Completions (api.openai.com). Reasoning
-#                  translated to `reasoning_effort` on o-series models.
+#   "openai"     — OpenAI Chat Completions (api.openai.com). Explicit
+#                  [llm.openai].reasoning_effort applies to every call.
 #   "openrouter" — openrouter.ai (200+ models from every major vendor).
 #                  Set OPENROUTER_API_KEY. Models like
 #                  "anthropic/claude-3.5-sonnet", "openai/gpt-5",
@@ -280,6 +271,8 @@ provider = "openai_compatible"
 # overrides the preset's base_url (rarely needed).
 [llm.openai]
 base_url = "http://localhost:8000/v1"
+# Sent verbatim on every OpenAI-compatible chat completion request.
+reasoning_effort = "high"
 
 # OpenRouter attribution (optional; for catalog ranking).
 [llm.openrouter]
