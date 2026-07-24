@@ -293,7 +293,8 @@ async def test_terminal_waits_for_required_supporting_tools() -> None:
         terminal_required_tool_hint="Inspect the catalog before finalizing.",
     )
 
-    assert result.iterations == 3
+    assert result.iterations == 2
+    assert client.call.await_count == 2
     assert registry.call.await_count == 1
     assert [call["name"] for call in result.tool_calls] == [
         "record_hypothesis",
@@ -301,6 +302,7 @@ async def test_terminal_waits_for_required_supporting_tools() -> None:
         "record_hypothesis",
     ]
     assert result.tool_calls[0]["error"] == "blocked_terminal_requires_tools"
+    assert result.tool_calls[2]["reused_blocked_terminal"] is True
     second_spec = client.call.await_args_list[1].args[0]
     rendered = str(second_spec.extra_messages)
     assert "capability_search" in rendered
@@ -395,7 +397,8 @@ async def test_invalid_capability_validation_does_not_satisfy_terminal_guard() -
         terminal_required_tool_names=("capability_validate_workflow",),
     )
 
-    assert result.iterations == 4
+    assert result.iterations == 3
+    assert client.call.await_count == 3
     assert registry.call.await_count == 2
     assert [call["name"] for call in result.tool_calls] == [
         "capability_validate_workflow",
@@ -406,6 +409,7 @@ async def test_invalid_capability_validation_does_not_satisfy_terminal_guard() -
     assert result.tool_calls[1]["error"] == "blocked_terminal_requires_tools"
     assert result.tool_calls[0]["result"]["status"] == "invalid"
     assert result.tool_calls[2]["result"]["status"] == "partial"
+    assert result.tool_calls[3]["reused_blocked_terminal"] is True
 
 
 @pytest.mark.asyncio
@@ -481,11 +485,306 @@ async def test_end_turn_after_blocked_terminal_keeps_required_tool_loop_active()
         terminal_required_tool_names=("capability_search",),
     )
 
-    assert result.iterations == 4
+    assert result.iterations == 3
+    assert client.call.await_count == 3
     assert registry.call.await_count == 1
     third_call_spec = client.call.await_args_list[2].args[0]
     assert "preserve me" in str(third_call_spec.extra_messages)
     assert result.last_blocked_terminal_input == candidate
+    assert result.tool_calls[-1]["reused_blocked_terminal"] is True
+
+
+@pytest.mark.asyncio
+async def test_ollama_repairs_invalid_blocked_terminal_after_required_tool() -> None:
+    from hypothesis_engine.tools.base import ToolResult
+
+    invalid_candidate = {"title": "needs repair"}
+    repaired_candidate = {"title": "repaired", "statement": "complete"}
+    client = MagicMock()
+    client.supports_terminal_record_finalization = True
+    client.call = AsyncMock(
+        side_effect=[
+            _fake_response(
+                stop_reason="tool_use",
+                blocks=[
+                    {
+                        "type": "tool_use",
+                        "id": "terminal_early",
+                        "name": "record_hypothesis",
+                        "input": invalid_candidate,
+                    }
+                ],
+            ),
+            _fake_response(
+                stop_reason="tool_use",
+                blocks=[
+                    {
+                        "type": "tool_use",
+                        "id": "search",
+                        "name": "capability_search",
+                        "input": {"query": "TMD methods"},
+                    }
+                ],
+            ),
+        ]
+    )
+    client.finalize_terminal_record = AsyncMock(
+        return_value=_fake_response(
+            stop_reason="tool_use",
+            blocks=[
+                {
+                    "type": "tool_use",
+                    "id": "terminal_repaired",
+                    "name": "record_hypothesis",
+                    "input": repaired_candidate,
+                }
+            ],
+        )
+    )
+    registry = MagicMock()
+    registry._cfg = SimpleNamespace()
+    registry.call = AsyncMock(return_value=ToolResult(content={"results": []}))
+    spec = AgentCallSpec(
+        route=ModelRoute(agent="generation", mode="debate", model="gpt-oss:120b"),
+        user_blocks=[CachedBlock("go")],
+        tools=[
+            {"name": "capability_search", "description": "search", "input_schema": {}},
+            {
+                "name": "record_hypothesis",
+                "description": "finish",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "statement": {"type": "string"},
+                    },
+                    "required": ["title", "statement"],
+                    "additionalProperties": False,
+                },
+            },
+        ],
+        max_output_tokens=512,
+    )
+
+    result = await run_tool_loop(
+        client,
+        spec=spec,
+        ctx=_ctx(),
+        registry=registry,
+        max_iters=8,
+        terminal_required_tool_names=("capability_search",),
+    )
+
+    assert result.iterations == 2
+    client.finalize_terminal_record.assert_awaited_once()
+    repair_kwargs = client.finalize_terminal_record.await_args.kwargs
+    assert repair_kwargs["candidate_input"] == invalid_candidate
+    assert any("statement" in item for item in repair_kwargs["validation_errors"])
+    assert result.response.raw.content[0].input == repaired_candidate
+    assert result.tool_calls[-1]["terminal_finalization"] is True
+    assert result.tool_calls[-1]["terminal_finalization_mode"] == "repair"
+
+
+@pytest.mark.asyncio
+async def test_loop_exhaustion_synthesizes_terminal_without_cached_candidate() -> None:
+    from hypothesis_engine.tools.base import ToolResult
+
+    terminal = {"title": "Synthesized", "statement": "Complete record"}
+    client = MagicMock()
+    client.supports_terminal_record_finalization = True
+    client.call = AsyncMock(
+        return_value=_fake_response(
+            stop_reason="tool_use",
+            blocks=[
+                {
+                    "type": "tool_use",
+                    "id": "search",
+                    "name": "capability_search",
+                    "input": {"query": "TMD methods"},
+                }
+            ],
+        )
+    )
+    client.finalize_terminal_record = AsyncMock(
+        return_value=_fake_response(
+            stop_reason="tool_use",
+            blocks=[
+                {
+                    "type": "tool_use",
+                    "id": "terminal",
+                    "name": "record_hypothesis",
+                    "input": terminal,
+                }
+            ],
+        )
+    )
+    registry = MagicMock()
+    registry._cfg = SimpleNamespace()
+    registry.call = AsyncMock(return_value=ToolResult(content={"results": []}))
+    spec = AgentCallSpec(
+        route=ModelRoute(agent="generation", mode="literature", model="gpt-oss:120b"),
+        user_blocks=[CachedBlock("go")],
+        tools=[
+            {"name": "capability_search", "description": "", "input_schema": {}},
+            {
+                "name": "record_hypothesis",
+                "description": "",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "statement": {"type": "string"},
+                    },
+                    "required": ["title", "statement"],
+                },
+            },
+        ],
+    )
+
+    result = await run_tool_loop(
+        client,
+        spec=spec,
+        ctx=_ctx(),
+        registry=registry,
+        max_iters=2,
+        force_terminal_tool="record_hypothesis",
+    )
+
+    assert result.iterations == 2
+    assert client.call.await_count == 2
+    client.finalize_terminal_record.assert_awaited_once()
+    finalize_kwargs = client.finalize_terminal_record.await_args.kwargs
+    assert finalize_kwargs["candidate_input"] is None
+    assert len(finalize_kwargs["source_spec"].extra_messages) == 4
+    assert result.response.raw.content[0].input == terminal
+    assert result.tool_calls[-1]["terminal_finalization_mode"] == "synthesis"
+
+
+@pytest.mark.asyncio
+async def test_terminal_synthesis_repairs_first_invalid_finalization() -> None:
+    invalid = {"title": "Incomplete"}
+    valid = {"title": "Complete", "statement": "Now valid"}
+    client = MagicMock()
+    client.supports_terminal_record_finalization = True
+    client.call = AsyncMock(
+        return_value=_fake_response(stop_reason="end_turn", blocks=[{"type": "text"}])
+    )
+    client.finalize_terminal_record = AsyncMock(
+        side_effect=[
+            _fake_response(
+                stop_reason="tool_use",
+                blocks=[
+                    {
+                        "type": "tool_use",
+                        "id": "invalid",
+                        "name": "record_hypothesis",
+                        "input": invalid,
+                    }
+                ],
+            ),
+            _fake_response(
+                stop_reason="tool_use",
+                blocks=[
+                    {
+                        "type": "tool_use",
+                        "id": "valid",
+                        "name": "record_hypothesis",
+                        "input": valid,
+                    }
+                ],
+            ),
+        ]
+    )
+    registry = MagicMock()
+    registry._cfg = SimpleNamespace()
+    spec = AgentCallSpec(
+        route=ModelRoute(agent="generation", mode="literature", model="gpt-oss:120b"),
+        user_blocks=[CachedBlock("go")],
+        tools=[
+            {
+                "name": "record_hypothesis",
+                "description": "",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "statement": {"type": "string"},
+                    },
+                    "required": ["title", "statement"],
+                },
+            }
+        ],
+    )
+
+    result = await run_tool_loop(
+        client,
+        spec=spec,
+        ctx=_ctx(),
+        registry=registry,
+        max_iters=8,
+        force_terminal_tool="record_hypothesis",
+    )
+
+    assert result.iterations == 1
+    assert client.finalize_terminal_record.await_count == 2
+    second_kwargs = client.finalize_terminal_record.await_args_list[1].kwargs
+    assert second_kwargs["candidate_input"] == invalid
+    assert any("statement" in error for error in second_kwargs["validation_errors"])
+    assert [attempt["terminal_finalization_mode"] for attempt in result.tool_calls] == [
+        "synthesis",
+        "repair",
+    ]
+    assert result.response.raw.content[0].input == valid
+
+
+@pytest.mark.asyncio
+async def test_unadvertised_tool_is_rejected_without_registry_dispatch() -> None:
+    client = MagicMock()
+    client.call = AsyncMock(
+        side_effect=[
+            _fake_response(
+                stop_reason="tool_use",
+                blocks=[
+                    {
+                        "type": "tool_use",
+                        "id": "hallucinated",
+                        "name": "arxiv_search",
+                        "input": {"query": "should not run"},
+                    }
+                ],
+            ),
+            _fake_response(stop_reason="end_turn", blocks=[{"type": "text", "text": "done"}]),
+        ]
+    )
+    registry = MagicMock()
+    registry._cfg = SimpleNamespace()
+    registry.call = AsyncMock()
+    spec = AgentCallSpec(
+        route=ModelRoute(agent="generation", mode="literature", model="qwen3.6:35b"),
+        user_blocks=[CachedBlock("go")],
+        tools=[{"name": "capability_search", "description": "", "input_schema": {}}],
+    )
+
+    result = await run_tool_loop(
+        client,
+        spec=spec,
+        ctx=_ctx(),
+        registry=registry,
+        max_iters=2,
+    )
+
+    registry.call.assert_not_awaited()
+    assert result.tool_calls == [
+        {
+            "name": "arxiv_search",
+            "args": {"query": "should not run"},
+            "is_error": True,
+            "duration_ms": 0,
+            "error": "tool_not_in_active_schema",
+        }
+    ]
+    followup = client.call.await_args_list[1].args[0]
+    assert "tool_not_in_active_schema" in str(followup.extra_messages)
 
 
 @pytest.mark.asyncio

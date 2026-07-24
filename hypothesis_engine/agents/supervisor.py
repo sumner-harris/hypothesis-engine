@@ -288,7 +288,7 @@ class Supervisor:
             user_blocks=[CachedBlock(prompt, cache=False)],
             tools=[RECORD_RESEARCH_PLAN_TOOL],
             tool_choice={"type": "tool", "name": "record_research_plan"},
-            max_output_tokens=1024,
+            max_output_tokens=32_000,
         )
         ctx = CallContext(
             session_id=session.id,

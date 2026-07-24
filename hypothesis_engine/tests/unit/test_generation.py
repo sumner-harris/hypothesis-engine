@@ -197,6 +197,7 @@ async def test_generation_rag_workflow_discovers_waits_then_debates(
                 "force_terminal_tool": kwargs.get("force_terminal_tool"),
                 "terminal_tool_names": kwargs.get("terminal_tool_names"),
                 "terminal_required_tool_names": kwargs.get("terminal_required_tool_names"),
+                "max_output_tokens": kwargs["spec"].max_output_tokens,
                 "prompt": kwargs["spec"].user_blocks[0].text,
             }
         )
@@ -329,6 +330,8 @@ async def test_generation_rag_workflow_discovers_waits_then_debates(
     assert result.extra["rag_ingest_wait"]["indexed_paper_count"] == 2
     assert calls[0]["ctx_mode"] == "literature_discovery"
     assert calls[1]["ctx_mode"] == "debate"
+    assert calls[0]["max_output_tokens"] == 32_000
+    assert calls[1]["max_output_tokens"] == 32_000
     assert calls[0]["force_terminal_tool"] == "record_literature_discovery"
     assert calls[1]["force_terminal_tool"] == "record_hypothesis"
     assert calls[0]["terminal_required_tool_names"] == (
@@ -545,6 +548,76 @@ async def test_generation_rag_initial_discovery_barrier_merges_parallel_tasks(
             "biorxiv_search",
             "chemrxiv_search",
         }
+
+
+@pytest.mark.asyncio
+async def test_initial_discovery_barrier_releases_when_peer_task_is_dead(
+    conn, tmp_cfg
+) -> None:
+    tmp_cfg.rag.generation_wait_timeout_seconds = 3600
+    session = await _seed_session(conn)
+    now = datetime.now(UTC)
+    tasks = [
+        Task(
+            id="tsk_discovery_complete",
+            session_id=session.id,
+            created_at=now,
+            agent="generation",
+            action="CreateInitialHypotheses",
+            payload={
+                "initial_generation": True,
+                "initial_total": 2,
+                "discovery_group": "initial",
+            },
+        ),
+        Task(
+            id="tsk_discovery_dead",
+            session_id=session.id,
+            created_at=now + timedelta(seconds=1),
+            agent="generation",
+            action="CreateInitialHypotheses",
+            payload={
+                "initial_generation": True,
+                "initial_total": 2,
+                "discovery_group": "initial",
+            },
+        ),
+    ]
+    for task in tasks:
+        assert await task_repo.enqueue(conn, task) is True
+    await conn.execute(
+        "UPDATE tasks SET status='dead', last_error='tool loop exhausted' WHERE id=?",
+        ("tsk_discovery_dead",),
+    )
+    await conn.commit()
+
+    artifact_root = tmp_cfg.session_artifact_dir(session.id) / "generation_discovery"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    (artifact_root / "tsk_discovery_complete.json").write_text(
+        json.dumps(
+            {
+                "task_id": "tsk_discovery_complete",
+                "discovery_group": "initial",
+                "discovery_text": "completed discovery",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status, discoveries = await generation_mod._wait_for_initial_discovery_artifacts(
+        tmp_cfg,
+        conn,
+        session.id,
+        discovery_group="initial",
+        expected_count=2,
+        current_task_id="tsk_discovery_complete",
+    )
+
+    assert status["release_reason"] == "all_discoveries_or_tasks_terminal"
+    assert status["completed_task_ids"] == ["tsk_discovery_complete"]
+    assert status["terminal_without_discovery_task_ids"] == ["tsk_discovery_dead"]
+    assert status["task_statuses"]["tsk_discovery_dead"] == "dead"
+    assert len(discoveries) == 1
 
 
 @pytest.mark.asyncio

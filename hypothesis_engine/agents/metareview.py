@@ -87,7 +87,7 @@ class MetaReviewAgent(BaseAgent):
             user_blocks=[CachedBlock(prompt, cache=False)],
             tools=[RECORD_SYSTEM_FEEDBACK_TOOL],
             tool_choice={"type": "tool", "name": "record_system_feedback"},
-            max_output_tokens=4096,
+            max_output_tokens=32_000,
         )
         ctx = CallContext(
             session_id=session.id,
@@ -196,7 +196,7 @@ class MetaReviewAgent(BaseAgent):
                 user_blocks=[CachedBlock(prompt, cache=False)],
                 tools=[RECORD_SYSTEM_FEEDBACK_TOOL],
                 tool_choice={"type": "tool", "name": "record_system_feedback"},
-                max_output_tokens=4096,
+                max_output_tokens=32_000,
             )
             ctx = CallContext(
                 session_id=task.session_id,
@@ -293,7 +293,7 @@ class MetaReviewAgent(BaseAgent):
             user_blocks=[CachedBlock(prompt, cache=False)],
             tools=[],  # No tools — write the markdown directly
             tool_choice=None,
-            max_output_tokens=8192,
+            max_output_tokens=32_000,
         )
         ctx = CallContext(
             session_id=session.id,

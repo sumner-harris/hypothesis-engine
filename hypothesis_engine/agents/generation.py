@@ -641,7 +641,7 @@ class GenerationAgent(BaseAgent):
             user_blocks=[CachedBlock(prompt, cache=False)],
             tools=discovery_tools,
             tool_choice={"type": "auto"},
-            max_output_tokens=min(4096, self.deps.cfg.generation.hypothesis_max_output_tokens),
+            max_output_tokens=self.deps.cfg.generation.hypothesis_max_output_tokens,
         )
         ctx = CallContext(
             session_id=task.session_id,
@@ -746,10 +746,8 @@ class GenerationAgent(BaseAgent):
             user_blocks=[CachedBlock(prompt, cache=False)],
             tools=tools,
             tool_choice={"type": "auto"},
-            # A full record_hypothesis payload (statement + mechanism + entities
-            # + outcomes + novelty + citations) is large; verbose / reasoning
-            # models overran the old 4096 cap mid-JSON, so the arguments string
-            # was truncated and unparseable. 8192 leaves room to complete it.
+            # A full record_hypothesis payload is large, so use the configured
+            # permissive cap for both debate and literature-discovery phases.
             max_output_tokens=self.deps.cfg.generation.hypothesis_max_output_tokens,
         )
         ctx = CallContext(
@@ -1819,20 +1817,35 @@ async def _wait_for_initial_discovery_artifacts(
             expected_ids,
         )
         completed_ids = {str(d.get("task_id") or "") for d in discoveries}
+        task_statuses = await _initial_discovery_task_statuses(conn, expected_ids)
+        terminal_without_discovery_ids = sorted(
+            task_id
+            for task_id in expected_ids
+            if task_id not in completed_ids
+            and task_statuses.get(task_id) in {"done", "failed", "dead", "cancelled"}
+        )
         if expected_ids:
-            complete = set(expected_ids).issubset(completed_ids)
+            satisfied_ids = completed_ids | set(terminal_without_discovery_ids)
+            complete = set(expected_ids).issubset(satisfied_ids)
         else:
             complete = len(discoveries) >= expected_count
         if complete:
+            release_reason = (
+                "all_discoveries_completed"
+                if not terminal_without_discovery_ids
+                else "all_discoveries_or_tasks_terminal"
+            )
             return (
                 {
                     "waited": True,
-                    "release_reason": "all_discoveries_completed",
+                    "release_reason": release_reason,
                     "discovery_group": discovery_group,
                     "expected_discoveries": expected_count,
                     "completed_discoveries": len(discoveries),
                     "expected_task_ids": expected_ids,
                     "completed_task_ids": sorted(completed_ids),
+                    "terminal_without_discovery_task_ids": terminal_without_discovery_ids,
+                    "task_statuses": task_statuses,
                     "current_task_id": current_task_id,
                     "timeout_seconds": timeout,
                 },
@@ -1849,12 +1862,35 @@ async def _wait_for_initial_discovery_artifacts(
                     "completed_discoveries": len(discoveries),
                     "expected_task_ids": expected_ids,
                     "completed_task_ids": sorted(completed_ids),
+                    "terminal_without_discovery_task_ids": terminal_without_discovery_ids,
+                    "task_statuses": task_statuses,
                     "current_task_id": current_task_id,
                     "timeout_seconds": timeout,
                 },
                 discoveries,
             )
         await asyncio.sleep(_INITIAL_DISCOVERY_POLL_SECONDS)
+
+
+async def _initial_discovery_task_statuses(
+    conn: Any,
+    expected_ids: list[str],
+) -> dict[str, str]:
+    if conn is None or not expected_ids:
+        return {}
+    placeholders = ",".join("?" for _ in expected_ids)
+    try:
+        async with conn.execute(
+            f"SELECT id, status FROM tasks WHERE id IN ({placeholders})",
+            tuple(expected_ids),
+        ) as cur:
+            rows = await cur.fetchall()
+    except Exception:
+        return {}
+    return {
+        str(row["id"]): str(row["status"] or "")
+        for row in rows
+    }
 
 
 async def _initial_discovery_expected_task_ids(

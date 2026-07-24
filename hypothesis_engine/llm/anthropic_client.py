@@ -64,6 +64,8 @@ class AgentCallSpec:
     stop_sequences: list[str] | None = None
     extra_messages: list[dict[str, Any]] = field(default_factory=list)
     """Appended *after* the user_blocks message — used for tool_use/tool_result threads."""
+    reasoning_effort: str | None = None
+    """Optional per-call OpenAI reasoning override for deterministic formatter calls."""
 
 
 @dataclass

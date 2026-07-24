@@ -87,9 +87,9 @@ class RankingCfg(BaseModel):
     debate_when_elo_delta_lt: int = 50
     # Ranking completions are capped independently of the context window.
     # Debate mode needs room to deliberate and still emit the required verdict.
-    pairwise_max_output_tokens: int = 8192
-    debate_max_output_tokens: int = 12288
-    verdict_retry_max_output_tokens: int = 1024
+    pairwise_max_output_tokens: int = 32_000
+    debate_max_output_tokens: int = 32_000
+    verdict_retry_max_output_tokens: int = 32_000
     # Prompt-side budgets used to reduce verbosity bias in ranking comparisons.
     # Set any value below 0 to keep the corresponding text untrimmed.
     prompt_hypothesis_max_chars: int = -1
@@ -117,11 +117,11 @@ class ReflectionCfg(BaseModel):
     # Reflection completions are capped independently of the context window.
     # Recovery is a compact forced-tool call used when the normal review loop
     # fails to emit a complete record_review terminal tool.
-    review_max_output_tokens: int = 8192
-    review_recovery_max_output_tokens: int = 2048
+    review_max_output_tokens: int = 32_000
+    review_recovery_max_output_tokens: int = 32_000
     review_recovery_max_attempts: int = 4
     review_recovery_token_multiplier: int = 2
-    review_recovery_max_output_tokens_cap: int = 16384
+    review_recovery_max_output_tokens_cap: int = 32_000
 
 
 class GenerationCfg(BaseModel):
@@ -129,11 +129,11 @@ class GenerationCfg(BaseModel):
     # Recovery is a compact forced-tool call used when the literature loop
     # produces prose or a malformed/truncated record_hypothesis payload.
     discovery_profiles: str = "./config/discovery_profiles/materials_chemistry.yaml"
-    hypothesis_max_output_tokens: int = 8192
-    hypothesis_recovery_max_output_tokens: int = 4096
+    hypothesis_max_output_tokens: int = 32_000
+    hypothesis_recovery_max_output_tokens: int = 32_000
     hypothesis_recovery_max_attempts: int = 3
     hypothesis_recovery_token_multiplier: int = 2
-    hypothesis_recovery_max_output_tokens_cap: int = 16384
+    hypothesis_recovery_max_output_tokens_cap: int = 32_000
     # Extra record_hypothesis calls to make a mechanistically distinct
     # replacement when persistence rejects a proposal as a near duplicate.
     dedup_replacement_attempts: int = 0
@@ -180,11 +180,11 @@ class EvolutionCfg(BaseModel):
     # Evolution completions are capped independently of the context window.
     # Recovery is a compact forced-tool call used when a strategy produces prose
     # or hits max_tokens without a complete record_hypothesis payload.
-    hypothesis_max_output_tokens: int = 8192
-    hypothesis_recovery_max_output_tokens: int = 4096
+    hypothesis_max_output_tokens: int = 32_000
+    hypothesis_recovery_max_output_tokens: int = 32_000
     hypothesis_recovery_max_attempts: int = 3
     hypothesis_recovery_token_multiplier: int = 2
-    hypothesis_recovery_max_output_tokens_cap: int = 16384
+    hypothesis_recovery_max_output_tokens_cap: int = 32_000
     dedup_replacement_attempts: int = 0
 
 
@@ -282,7 +282,7 @@ class RAGCfg(BaseModel):
     literature_review_dedupe_reviewed_results: bool = True
     literature_review_max_candidates: int = 30
     literature_review_max_context_results: int = 30
-    literature_review_max_output_tokens: int = 12_288
+    literature_review_max_output_tokens: int = 32_000
     literature_review_timeout_seconds: int = 300
     literature_review_fallback_to_top_results: bool = True
     max_session_papers: int = 120
@@ -294,7 +294,13 @@ class RAGCfg(BaseModel):
     embedding_base_url: str | None = None
     llm_model: str = ""
     llm_base_url: str | None = None
-    retrieval_method: str = "faiss_mmr"
+    retrieval_method: Literal[
+        "faiss_mmr",
+        "bm25",
+        "hybrid",
+        "hybrid_multi_query",
+        "hybrid_multi_query_compression",
+    ] = "faiss_mmr"
     top_k_faiss: int = 30
     diversity: float = 0.7
     context_max_chars: int = 12_000
@@ -323,10 +329,16 @@ class OpenAIProviderCfg(BaseModel):
 
     `reasoning_effort`, when set, is sent on every OpenAI-backed chat
     completion request, including requests to compatible endpoints.
+
+    `compatibility_profile` controls endpoint-specific request adaptation.
+    "auto" recognizes the Ollama preset and conventional port 11434;
+    "ollama" enables strict JSON-schema terminal-record calls; "generic"
+    preserves standard OpenAI Chat Completions tool calling.
     """
 
     base_url: str | None = None
     reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    compatibility_profile: Literal["auto", "generic", "ollama"] = "auto"
 
 
 class AnthropicProviderCfg(BaseModel):

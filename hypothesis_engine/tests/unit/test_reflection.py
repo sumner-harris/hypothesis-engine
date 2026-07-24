@@ -302,8 +302,7 @@ async def test_reflection_retries_incomplete_review_with_larger_token_limit(
     assert result.extra["recovery_attempts"] == 2
     assert [call.args[0].max_output_tokens for call in llm.call.await_args_list] == [
         tmp_cfg.reflection.review_recovery_max_output_tokens,
-        tmp_cfg.reflection.review_recovery_max_output_tokens
-        * tmp_cfg.reflection.review_recovery_token_multiplier,
+        tmp_cfg.reflection.review_recovery_max_output_tokens_cap,
     ]
 
     reviews = await rev_repo.list_for_hypothesis(conn, hypothesis.id)

@@ -1540,28 +1540,19 @@ class RAGRetrieveContextTool:
     description = (
         "Retrieve concise, reranked context from the session RAG knowledge base of fetched "
         "full-text PDFs. Use this before reviewing or evolving hypotheses when literature "
-        "context is needed without reading whole papers into the prompt."
+        "context is needed without reading whole papers into the prompt. The retrieval "
+        "strategy is fixed by the session configuration."
     )
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
             "query": {"type": "string", "description": "Focused retrieval query."},
-            "retrieval_method": {
-                "type": "string",
-                "enum": [
-                    "faiss_mmr",
-                    "bm25",
-                    "hybrid",
-                    "hybrid_multi_query",
-                    "hybrid_multi_query_compression",
-                ],
-                "description": "Optional override; defaults to [rag].retrieval_method.",
-            },
             "top_k_faiss": {"type": "integer", "minimum": 1, "maximum": 100},
             "diversity": {"type": "number", "minimum": 0, "maximum": 1},
             "max_chars": {"type": "integer", "minimum": 1000, "maximum": 50000},
         },
         "required": ["query"],
+        "additionalProperties": False,
     }
 
     def __init__(self, cfg: Config) -> None:
@@ -1703,7 +1694,10 @@ def _retrieve_context_unlocked(
         }
 
     retrieve_context = _import_retrieval_service(cfg)
-    method = str(args.get("retrieval_method") or cfg.rag.retrieval_method or "faiss_mmr")
+    # Retrieval strategy is a session-level policy. Never allow an agent-emitted
+    # argument (including one from a stale prompt or permissive provider) to
+    # override the frozen configuration.
+    method = str(cfg.rag.retrieval_method or "faiss_mmr")
     top_k = int(args.get("top_k_faiss") or cfg.rag.top_k_faiss)
     diversity = float(
         args.get("diversity") if args.get("diversity") is not None else cfg.rag.diversity

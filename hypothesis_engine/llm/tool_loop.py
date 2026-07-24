@@ -17,8 +17,11 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlsplit
+
+from jsonschema import Draft202012Validator
 
 from ..ids import tool_run_id
 from ..tools.base import ToolCtx
@@ -52,6 +55,14 @@ class ToolLoopResult:
     web_fetch and receive usable text for a source to become citeable. The
     text may be a compact excerpt; full paper text is not required in-context.
     """
+
+
+@dataclass
+class _TerminalFinalizationResult:
+    response: AnthropicResponse | None
+    candidate_input: dict[str, Any] | None
+    validation_errors: list[str]
+    attempts: list[dict[str, Any]]
 
 
 async def run_tool_loop(
@@ -91,11 +102,10 @@ async def run_tool_loop(
       on the first call.
     - max_iters reached — raise ToolLoopExhausted.
 
-    `force_terminal_tool`: if set, the *final* allowed iteration forces
-    `tool_choice` to that tool so the model must emit a record instead of
-    spending its last turn on yet another search. This prevents the
-    "looped until exhausted, produced nothing" failure mode where a model
-    keeps verifying novelty and never commits.
+    `force_terminal_tool`: if set, providers with a dedicated finalization
+    path receive a fresh schema-constrained synthesis/repair call after normal
+    exploration (or after an early end_turn). Other providers retain the
+    legacy behavior of forcing the tool on the final allowed iteration.
     """
     seen_urls: set[str] = set()
     session_fetched_source_keys = _session_fetched_source_keys(registry._cfg, ctx.session_id)
@@ -108,12 +118,16 @@ async def run_tool_loop(
     terminal_required_tool_guard_blocks = 0
     successful_tool_names: set[str] = set()
     last_blocked_terminal_input: dict[str, Any] | None = None
+    last_blocked_terminal_name: str | None = None
     tool_calls_log: list[dict[str, Any]] = []
     citation_candidates: list[dict[str, Any]] = []
     citation_candidate_urls: set[str] = set()
     iterations = 0
     current_spec = spec
     terminal_set = set(terminal_tool_names)
+    supports_terminal_finalization = (
+        getattr(client, "supports_terminal_record_finalization", False) is True
+    )
 
     last: AnthropicResponse | None = None
 
@@ -125,6 +139,7 @@ async def run_tool_loop(
         if (
             force_terminal_tool
             and iterations == max_iters
+            and not supports_terminal_finalization
             and not _needs_more_seen_urls(
                 min_seen_urls=terminal_min_seen_urls,
                 seen_urls=seen_urls,
@@ -144,6 +159,7 @@ async def run_tool_loop(
                 max_output_tokens=current_spec.max_output_tokens,
                 stop_sequences=current_spec.stop_sequences,
                 extra_messages=current_spec.extra_messages,
+                reasoning_effort=current_spec.reasoning_effort,
             )
         resp = await client.call(call_spec, ctx)
         last = resp
@@ -190,9 +206,16 @@ async def run_tool_loop(
                     max_output_tokens=current_spec.max_output_tokens,
                     stop_sequences=current_spec.stop_sequences,
                     extra_messages=next_messages,
+                    reasoning_effort=current_spec.reasoning_effort,
                 )
                 terminal_required_tool_guard_blocks += 1
                 continue
+            if (
+                force_terminal_tool
+                and supports_terminal_finalization
+                and not missing_required_tools
+            ):
+                break
             return ToolLoopResult(
                 response=resp,
                 iterations=iterations,
@@ -205,6 +228,18 @@ async def run_tool_loop(
         # Extract tool_use blocks from the assistant response
         tool_uses = [b for b in resp.raw.content if getattr(b, "type", None) == "tool_use"]
         if not tool_uses:
+            missing_required_tools = [
+                name
+                for name in terminal_required_tool_names
+                if name in _tool_names(current_spec.tools)
+                and name not in successful_tool_names
+            ]
+            if (
+                force_terminal_tool
+                and supports_terminal_finalization
+                and not missing_required_tools
+            ):
+                break
             return ToolLoopResult(
                 response=resp,
                 iterations=iterations,
@@ -213,6 +248,71 @@ async def run_tool_loop(
                 citation_candidates=citation_candidates,
                 last_blocked_terminal_input=last_blocked_terminal_input,
             )
+
+        available_tool_names = _tool_names(current_spec.tools)
+        allowed_response_tool_names = available_tool_names | terminal_set
+        unexpected_tool_uses = [
+            block
+            for block in tool_uses
+            if str(getattr(block, "name", "") or "") not in allowed_response_tool_names
+        ]
+        if unexpected_tool_uses:
+            # Never dispatch a hallucinated or disabled tool merely because a
+            # provider returned a syntactically valid tool call. Reject the
+            # entire response so every tool_use receives a paired error result.
+            context_results: list[dict[str, Any]] = []
+            for block in tool_uses:
+                name = str(getattr(block, "name", "") or "")
+                if name in allowed_response_tool_names:
+                    error = "batch_rejected_due_unadvertised_tool"
+                else:
+                    error = "tool_not_in_active_schema"
+                result = {
+                    "is_error": True,
+                    "content": {
+                        "error": error,
+                        "tool": name,
+                        "active_tools": sorted(available_tool_names),
+                    },
+                    "duration_ms": 0,
+                }
+                context_results.append(result)
+                tool_calls_log.append(
+                    {
+                        "name": name,
+                        "args": dict(getattr(block, "input", {}) or {}),
+                        "is_error": True,
+                        "duration_ms": 0,
+                        "error": error,
+                    }
+                )
+            next_messages = list(current_spec.extra_messages)
+            next_messages.append(
+                {"role": "assistant", "content": _content_to_dicts(resp.raw.content)}
+            )
+            next_messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        _tool_result_block(tool_use, result)
+                        for tool_use, result in zip(
+                            tool_uses, context_results, strict=True
+                        )
+                    ],
+                }
+            )
+            current_spec = AgentCallSpec(
+                route=current_spec.route,
+                system_blocks=current_spec.system_blocks,
+                user_blocks=current_spec.user_blocks,
+                tools=current_spec.tools,
+                tool_choice=current_spec.tool_choice,
+                max_output_tokens=current_spec.max_output_tokens,
+                stop_sequences=current_spec.stop_sequences,
+                extra_messages=next_messages,
+                reasoning_effort=current_spec.reasoning_effort,
+            )
+            continue
 
         terminal_uses = [b for b in tool_uses if getattr(b, "name", "") in terminal_set]
         if terminal_uses and _rag_retrieval_required(
@@ -261,11 +361,11 @@ async def run_tool_loop(
                 max_output_tokens=current_spec.max_output_tokens,
                 stop_sequences=current_spec.stop_sequences,
                 extra_messages=next_messages,
+                reasoning_effort=current_spec.reasoning_effort,
             )
             rag_first_guard_blocks += 1
             continue
 
-        available_tool_names = _tool_names(current_spec.tools)
         missing_required_tools = [
             name
             for name in terminal_required_tool_names
@@ -273,6 +373,7 @@ async def run_tool_loop(
         ]
         if terminal_uses and missing_required_tools and terminal_required_tool_guard_blocks < 3:
             last_blocked_terminal_input = dict(getattr(terminal_uses[0], "input", {}) or {})
+            last_blocked_terminal_name = str(getattr(terminal_uses[0], "name", "") or "")
             for b in terminal_uses:
                 tool_calls_log.append(
                     {
@@ -314,6 +415,7 @@ async def run_tool_loop(
                 max_output_tokens=current_spec.max_output_tokens,
                 stop_sequences=current_spec.stop_sequences,
                 extra_messages=next_messages,
+                reasoning_effort=current_spec.reasoning_effort,
             )
             terminal_required_tool_guard_blocks += 1
             continue
@@ -377,8 +479,91 @@ async def run_tool_loop(
                     max_output_tokens=current_spec.max_output_tokens,
                     stop_sequences=current_spec.stop_sequences,
                     extra_messages=next_messages,
+                    reasoning_effort=current_spec.reasoning_effort,
                 )
                 fetch_guard_blocks += 1
+                continue
+
+            terminal_candidate = dict(
+                getattr(terminal_uses[0], "input", {}) or {}
+            )
+            terminal_errors = (
+                _terminal_schema_validation_errors(
+                    tools=current_spec.tools,
+                    terminal_name=terminal_name,
+                    candidate_input=terminal_candidate,
+                )
+                if terminal_name in available_tool_names
+                else []
+            )
+            if terminal_errors:
+                last_blocked_terminal_input = terminal_candidate
+                last_blocked_terminal_name = terminal_name
+                tool_calls_log.append(
+                    {
+                        "name": terminal_name,
+                        "args": terminal_candidate,
+                        "is_error": True,
+                        "duration_ms": 0,
+                        "error": "invalid_terminal_schema",
+                        "validation_errors": terminal_errors,
+                    }
+                )
+                finalized = await _try_terminal_finalization(
+                    client,
+                    source_spec=current_spec,
+                    ctx=ctx,
+                    terminal_name=terminal_name,
+                    candidate_input=terminal_candidate,
+                    validation_errors=terminal_errors,
+                )
+                tool_calls_log.extend(finalized.attempts)
+                if finalized.response is not None:
+                    return ToolLoopResult(
+                        response=finalized.response,
+                        iterations=iterations,
+                        tool_calls=tool_calls_log,
+                        seen_urls=seen_urls,
+                        citation_candidates=citation_candidates,
+                        last_blocked_terminal_input=terminal_candidate,
+                    )
+
+                next_messages = list(current_spec.extra_messages)
+                assistant_blocks = [
+                    block
+                    for block in _content_to_dicts(resp.raw.content)
+                    if block.get("type") != "tool_use"
+                ]
+                if assistant_blocks:
+                    next_messages.append(
+                        {"role": "assistant", "content": assistant_blocks}
+                    )
+                next_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    f"The {terminal_name} arguments did not validate. "
+                                    "Correct these schema errors before finalizing:\n"
+                                    + "\n".join(finalized.validation_errors or terminal_errors)
+                                ),
+                            }
+                        ],
+                    }
+                )
+                current_spec = AgentCallSpec(
+                    route=current_spec.route,
+                    system_blocks=current_spec.system_blocks,
+                    user_blocks=current_spec.user_blocks,
+                    tools=current_spec.tools,
+                    tool_choice=current_spec.tool_choice,
+                    max_output_tokens=current_spec.max_output_tokens,
+                    stop_sequences=current_spec.stop_sequences,
+                    extra_messages=next_messages,
+                    reasoning_effort=current_spec.reasoning_effort,
+                )
                 continue
 
             for b in tool_uses:
@@ -447,6 +632,7 @@ async def run_tool_loop(
                 max_output_tokens=current_spec.max_output_tokens,
                 stop_sequences=current_spec.stop_sequences,
                 extra_messages=next_messages,
+                reasoning_effort=current_spec.reasoning_effort,
             )
             rag_first_guard_blocks += 1
             continue
@@ -509,6 +695,7 @@ async def run_tool_loop(
                         max_output_tokens=current_spec.max_output_tokens,
                         stop_sequences=current_spec.stop_sequences,
                         extra_messages=next_messages,
+                        reasoning_effort=current_spec.reasoning_effort,
                     )
                     fetch_guard_blocks += 1
                     continue
@@ -587,6 +774,7 @@ async def run_tool_loop(
                         max_output_tokens=current_spec.max_output_tokens,
                         stop_sequences=current_spec.stop_sequences,
                         extra_messages=next_messages,
+                        reasoning_effort=current_spec.reasoning_effort,
                     )
                     fetch_guard_blocks += 1
                     continue
@@ -633,6 +821,7 @@ async def run_tool_loop(
                     max_output_tokens=current_spec.max_output_tokens,
                     stop_sequences=current_spec.stop_sequences,
                     extra_messages=next_messages,
+                    reasoning_effort=current_spec.reasoning_effort,
                 )
                 fetch_guard_blocks += 1
                 continue
@@ -690,6 +879,66 @@ async def run_tool_loop(
                 if key:
                     session_fetched_source_keys.add(key)
 
+        # A terminal record can arrive before one of the workflow's mandatory
+        # supporting tools. Once those prerequisites have succeeded, do not
+        # ask the model to regenerate an already valid record. Invalid records
+        # use the same bounded fresh finalizer used at loop exhaustion.
+        if last_blocked_terminal_input is not None and last_blocked_terminal_name:
+            remaining_required_tools = [
+                name
+                for name in terminal_required_tool_names
+                if name in available_tool_names and name not in successful_tool_names
+            ]
+            if not remaining_required_tools:
+                validation_errors = _terminal_schema_validation_errors(
+                    tools=current_spec.tools,
+                    terminal_name=last_blocked_terminal_name,
+                    candidate_input=last_blocked_terminal_input,
+                )
+                if not validation_errors:
+                    reused_response = _terminal_response_from_candidate(
+                        resp,
+                        terminal_name=last_blocked_terminal_name,
+                        candidate_input=last_blocked_terminal_input,
+                        marker="reused",
+                    )
+                    tool_calls_log.append(
+                        {
+                            "name": last_blocked_terminal_name,
+                            "args": last_blocked_terminal_input,
+                            "is_error": False,
+                            "duration_ms": 0,
+                            "reused_blocked_terminal": True,
+                        }
+                    )
+                    return ToolLoopResult(
+                        response=reused_response,
+                        iterations=iterations,
+                        tool_calls=tool_calls_log,
+                        seen_urls=seen_urls,
+                        citation_candidates=citation_candidates,
+                        last_blocked_terminal_input=last_blocked_terminal_input,
+                    )
+
+                finalized = await _try_terminal_finalization(
+                    client,
+                    source_spec=current_spec,
+                    ctx=ctx,
+                    terminal_name=last_blocked_terminal_name,
+                    candidate_input=last_blocked_terminal_input,
+                    validation_errors=validation_errors,
+                )
+                tool_calls_log.extend(finalized.attempts)
+                if finalized.response is not None:
+                    return ToolLoopResult(
+                        response=finalized.response,
+                        iterations=iterations,
+                        tool_calls=tool_calls_log,
+                        seen_urls=seen_urls,
+                        citation_candidates=citation_candidates,
+                        last_blocked_terminal_input=last_blocked_terminal_input,
+                    )
+
         # Build next-turn spec: append the assistant message + a single user message
         # carrying all tool_result blocks. The assistant message must only carry
         # the tool_use blocks we actually dispatched — Anthropic requires every
@@ -718,7 +967,56 @@ async def run_tool_loop(
             max_output_tokens=current_spec.max_output_tokens,
             stop_sequences=current_spec.stop_sequences,
             extra_messages=next_messages,
+            reasoning_effort=current_spec.reasoning_effort,
         )
+
+    remaining_required_tools = [
+        name
+        for name in terminal_required_tool_names
+        if name in _tool_names(current_spec.tools) and name not in successful_tool_names
+    ]
+    if (
+        force_terminal_tool
+        and supports_terminal_finalization
+        and not remaining_required_tools
+        and not _needs_more_seen_urls(
+            min_seen_urls=terminal_min_seen_urls,
+            seen_urls=seen_urls,
+            fetchable_urls=fetchable_urls,
+            session_fetched_source_keys=session_fetched_source_keys,
+            tools=current_spec.tools,
+            web_fetch_attempts=web_fetch_attempts,
+            guard_blocks=fetch_guard_blocks,
+        )
+    ):
+        terminal_name = last_blocked_terminal_name or force_terminal_tool
+        validation_errors = (
+            _terminal_schema_validation_errors(
+                tools=current_spec.tools,
+                terminal_name=terminal_name,
+                candidate_input=last_blocked_terminal_input,
+            )
+            if last_blocked_terminal_input is not None
+            else []
+        )
+        finalized = await _try_terminal_finalization(
+            client,
+            source_spec=current_spec,
+            ctx=ctx,
+            terminal_name=terminal_name,
+            candidate_input=last_blocked_terminal_input,
+            validation_errors=validation_errors,
+        )
+        tool_calls_log.extend(finalized.attempts)
+        if finalized.response is not None:
+            return ToolLoopResult(
+                response=finalized.response,
+                iterations=iterations,
+                tool_calls=tool_calls_log,
+                seen_urls=seen_urls,
+                citation_candidates=citation_candidates,
+                last_blocked_terminal_input=last_blocked_terminal_input,
+            )
 
     assert last is not None
     raise ToolLoopExhausted(ctx.agent, iterations)
@@ -726,6 +1024,153 @@ async def run_tool_loop(
 
 # --------------------------------------------------------------------------- #
 # helpers
+
+
+def _terminal_schema_validation_errors(
+    *,
+    tools: list[dict[str, Any]],
+    terminal_name: str,
+    candidate_input: dict[str, Any] | None,
+) -> list[str]:
+    tool = next((item for item in tools if item.get("name") == terminal_name), None)
+    if tool is None:
+        return [f"terminal tool {terminal_name!r} is not in the active tool schema"]
+    if candidate_input is None:
+        return ["terminal candidate is missing"]
+    schema = tool.get("input_schema") or {}
+    try:
+        errors = sorted(
+            Draft202012Validator(schema).iter_errors(candidate_input),
+            key=lambda error: tuple(str(part) for part in error.absolute_path),
+        )
+    except Exception as exc:
+        return [f"terminal tool schema is invalid: {exc}"]
+    return [
+        f"{'.'.join(str(part) for part in error.absolute_path) or '$'}: {error.message}"
+        for error in errors
+    ]
+
+
+def _terminal_response_from_candidate(
+    base: AnthropicResponse,
+    *,
+    terminal_name: str,
+    candidate_input: dict[str, Any],
+    marker: str,
+) -> AnthropicResponse:
+    raw = SimpleNamespace(
+        content=[
+            SimpleNamespace(
+                type="tool_use",
+                id=f"call_{marker}_{tool_run_id()}",
+                name=terminal_name,
+                input=candidate_input,
+            )
+        ],
+        stop_reason="tool_use",
+        usage=getattr(base.raw, "usage", None),
+        model=getattr(base.raw, "model", ""),
+        id=getattr(base.raw, "id", ""),
+    )
+    return AnthropicResponse(
+        raw=raw,
+        transcript_id=base.transcript_id,
+        cost_usd=base.cost_usd,
+        input_tokens=base.input_tokens,
+        output_tokens=base.output_tokens,
+        cache_read=base.cache_read,
+        cache_write=base.cache_write,
+    )
+
+
+def _terminal_input_from_response(
+    response: AnthropicResponse | None,
+    *,
+    terminal_name: str,
+) -> dict[str, Any] | None:
+    if response is None:
+        return None
+    for block in getattr(response.raw, "content", []) or []:
+        if (
+            getattr(block, "type", None) == "tool_use"
+            and getattr(block, "name", None) == terminal_name
+        ):
+            value = getattr(block, "input", None)
+            return dict(value) if isinstance(value, dict) else None
+    return None
+
+
+async def _try_terminal_finalization(
+    client: AnthropicClient,
+    *,
+    source_spec: AgentCallSpec,
+    ctx: CallContext,
+    terminal_name: str,
+    candidate_input: dict[str, Any] | None,
+    validation_errors: list[str] | None = None,
+    max_attempts: int = 2,
+) -> _TerminalFinalizationResult:
+    """Run a bounded fresh terminal synthesis/repair sequence."""
+    if getattr(client, "supports_terminal_record_finalization", False) is not True:
+        return _TerminalFinalizationResult(
+            response=None,
+            candidate_input=candidate_input,
+            validation_errors=list(validation_errors or []),
+            attempts=[],
+        )
+
+    current_candidate = candidate_input
+    current_errors = list(validation_errors or [])
+    attempts: list[dict[str, Any]] = []
+    for attempt in range(1, max(1, max_attempts) + 1):
+        response = await client.finalize_terminal_record(
+            source_spec=source_spec,
+            ctx=ctx,
+            terminal_tool_name=terminal_name,
+            candidate_input=current_candidate,
+            validation_errors=current_errors,
+        )
+        parsed = _terminal_input_from_response(response, terminal_name=terminal_name)
+        errors = (
+            _terminal_schema_validation_errors(
+                tools=source_spec.tools,
+                terminal_name=terminal_name,
+                candidate_input=parsed,
+            )
+            if parsed is not None
+            else ["finalization response did not contain the terminal tool"]
+        )
+        attempts.append(
+            {
+                "name": terminal_name,
+                "args": parsed or current_candidate or {},
+                "is_error": bool(errors),
+                "duration_ms": 0,
+                "terminal_finalization": True,
+                "terminal_finalization_attempt": attempt,
+                "terminal_finalization_mode": (
+                    "repair" if current_candidate is not None else "synthesis"
+                ),
+                **({"validation_errors": errors} if errors else {}),
+            }
+        )
+        if response is not None and parsed is not None and not errors:
+            return _TerminalFinalizationResult(
+                response=response,
+                candidate_input=parsed,
+                validation_errors=[],
+                attempts=attempts,
+            )
+        if parsed is not None:
+            current_candidate = parsed
+        current_errors = errors
+
+    return _TerminalFinalizationResult(
+        response=None,
+        candidate_input=current_candidate,
+        validation_errors=current_errors,
+        attempts=attempts,
+    )
 
 
 async def _dispatch(

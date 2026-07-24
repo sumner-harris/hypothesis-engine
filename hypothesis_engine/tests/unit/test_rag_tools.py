@@ -32,7 +32,7 @@ def test_a100_remote_rag_config_uses_nvidiaspark_endpoints() -> None:
     assert cfg.rag.embedding_profile == "sfr"
     assert cfg.rag.rerank_base_url == "http://nvidiaspark:8002/v1"
     assert cfg.rag.rerank_model == "nemotron-rerank-1b-v2"
-    assert cfg.rag.retrieval_method == "hybrid_multi_query"
+    assert cfg.rag.retrieval_method == "hybrid"
     assert cfg.rag.generation_discovery_max_pdfs_per_round == 100
     assert cfg.rag.generation_wait_min_indexed_papers == 50
     assert cfg.rag.generation_wait_timeout_seconds == 300
@@ -52,6 +52,50 @@ def test_registry_exposes_rag_tools_only_when_enabled(tmp_cfg, tmp_path) -> None
     assert "rag_retrieve_context" in {t.name for t in reg.tools_for("generation")}
     assert "rag_retrieve_context" in {t.name for t in reg.tools_for("reflection")}
     assert "rag_retrieve_context" in {t.name for t in reg.tools_for("evolution")}
+
+
+def test_rag_retrieval_method_is_not_exposed_to_agents(tmp_cfg) -> None:
+    tool = rag_mod.RAGRetrieveContextTool(tmp_cfg)
+
+    assert "retrieval_method" not in tool.input_schema["properties"]
+    assert tool.input_schema["additionalProperties"] is False
+
+
+def test_rag_retrieval_method_always_comes_from_config(tmp_cfg, monkeypatch) -> None:
+    session_id = "ses_configured_retrieval"
+    tmp_cfg.rag.retrieval_method = "hybrid"
+    paths = rag_mod._paths(tmp_cfg, session_id)
+    paths.root.mkdir(parents=True)
+    paths.index_path.write_bytes(b"index")
+    paths.meta_path.write_bytes(b"meta")
+    captured: dict[str, object] = {}
+
+    def fake_retrieve_context(**kwargs):
+        captured.update(kwargs)
+        return {
+            "context_text": "configured retrieval result",
+            "sources": [],
+            "source_documents": [],
+            "rerank_chunks": [],
+            "embedding_model": "test-embedding",
+            "embedding_profile": "test",
+        }
+
+    monkeypatch.setattr(rag_mod, "_kb_status_sync", lambda _cfg, _session_id: {"status": "ok"})
+    monkeypatch.setattr(rag_mod, "_import_retrieval_service", lambda _cfg: fake_retrieve_context)
+
+    result = rag_mod._retrieve_context_unlocked(
+        tmp_cfg,
+        session_id,
+        {
+            "query": "focused query",
+            # Simulate a stale or malformed model call from a permissive provider.
+            "retrieval_method": "hybrid_multi_query_compression",
+        },
+    )
+
+    assert captured["retrieval_method"] == "hybrid"
+    assert result["retrieval_method"] == "hybrid"
 
 
 def test_seen_urls_record_rag_retrieval_sources() -> None:

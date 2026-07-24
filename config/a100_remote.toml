@@ -39,9 +39,9 @@ debate_when_matches_lt = 5
 debate_when_elo_delta_lt = 100
 # Completion caps are independent of the model context window. Ranking debate
 # must have enough output budget to deliberate and still emit `better idea: N`.
-pairwise_max_output_tokens = 8192
-debate_max_output_tokens = 12288
-verdict_retry_max_output_tokens = 1024
+pairwise_max_output_tokens = 32000
+debate_max_output_tokens = 32000
+verdict_retry_max_output_tokens = 32000
 # Prompt-side budgets reduce verbosity bias in ranking comparisons.
 # Set to -1 to keep the full text untrimmed.
 prompt_hypothesis_max_chars = -1
@@ -66,18 +66,18 @@ p_random = 0.15
 # Main review output plus compact forced-tool recovery calls if the model
 # finishes without a complete `record_review` payload. Recovery retries double
 # the output cap each time, bounded by review_recovery_max_output_tokens_cap.
-review_max_output_tokens = 8192
-review_recovery_max_output_tokens = 2048
+review_max_output_tokens = 32000
+review_recovery_max_output_tokens = 32000
 review_recovery_max_attempts = 4
 review_recovery_token_multiplier = 2
-review_recovery_max_output_tokens_cap = 16384
+review_recovery_max_output_tokens_cap = 32000
 
 [generation]
-hypothesis_max_output_tokens = 8192
-hypothesis_recovery_max_output_tokens = 4096
+hypothesis_max_output_tokens = 32000
+hypothesis_recovery_max_output_tokens = 32000
 hypothesis_recovery_max_attempts = 3
 hypothesis_recovery_token_multiplier = 2
-hypothesis_recovery_max_output_tokens_cap = 16384
+hypothesis_recovery_max_output_tokens_cap = 32000
 dedup_replacement_attempts = 2
 
 [termination]
@@ -110,11 +110,11 @@ top_k = 12
 idle_parallel_tasks = 4
 # Evolution strategy calls are run concurrently; each strategy has enough
 # output room to emit record_hypothesis, plus compact forced-tool recovery.
-hypothesis_max_output_tokens = 8192
-hypothesis_recovery_max_output_tokens = 4096
+hypothesis_max_output_tokens = 32000
+hypothesis_recovery_max_output_tokens = 32000
 hypothesis_recovery_max_attempts = 3
 hypothesis_recovery_token_multiplier = 2
-hypothesis_recovery_max_output_tokens_cap = 16384
+hypothesis_recovery_max_output_tokens_cap = 32000
 dedup_replacement_attempts = 2
 
 [budget_shares]
@@ -207,7 +207,7 @@ embedding_profile = "sfr"
 embedding_base_url = "http://nvidiaspark:8001/v1"
 llm_model = "gemma-4-26b-a4b-nvfp4"
 llm_base_url = "http://nvidiaspark:8000/v1"
-retrieval_method = "hybrid_multi_query"
+retrieval_method = "hybrid"
 top_k_faiss = 50
 diversity = 0.7
 context_max_chars = 30000

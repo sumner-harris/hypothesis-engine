@@ -19,10 +19,16 @@ from hypothesis_engine.llm.anthropic_client import AgentCallSpec, CachedBlock, C
 from hypothesis_engine.llm.openai_client import (
     OpenAIClient,
     _adapt_response,
+    _adapt_structured_terminal_response,
     _budget_to_effort,
     _build_openai_request,
     _is_gemma_tool_model,
     _is_reasoning_model,
+    _openai_request_timeout_seconds,
+    _parse_tool_arguments,
+    _prepare_openai_request,
+    _resolve_compatibility_profile,
+    _terminal_evidence_bundle,
     _translate_anthropic_message,
 )
 from hypothesis_engine.llm.provider import KNOWN_PROVIDERS, get_provider
@@ -255,6 +261,228 @@ def test_build_request_translates_any_tool_choice_to_required() -> None:
     assert _build_openai_request(spec)["tool_choice"] == "required"
 
 
+def test_ollama_profile_is_detected_from_provider_or_default_port() -> None:
+    assert (
+        _resolve_compatibility_profile(
+            provider="ollama",
+            configured="auto",
+            base_url="http://some-host/v1",
+        )
+        == "ollama"
+    )
+    assert (
+        _resolve_compatibility_profile(
+            provider="openai_compatible",
+            configured="auto",
+            base_url="http://some-host:11434/v1",
+        )
+        == "ollama"
+    )
+    assert (
+        _resolve_compatibility_profile(
+            provider="openai_compatible",
+            configured="generic",
+            base_url="http://some-host:11434/v1",
+        )
+        == "generic"
+    )
+
+
+def test_ollama_fresh_named_tool_uses_strict_json_schema() -> None:
+    schema = {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"],
+        "additionalProperties": False,
+    }
+    spec = AgentCallSpec(
+        route=_route(model="gpt-oss:120b"),
+        user_blocks=[CachedBlock("finish")],
+        tools=[
+            {
+                "name": "record_hypothesis",
+                "description": "Save a hypothesis",
+                "input_schema": schema,
+            }
+        ],
+        tool_choice={"type": "tool", "name": "record_hypothesis"},
+    )
+
+    request, terminal_name = _prepare_openai_request(
+        spec,
+        reasoning_effort="high",
+        compatibility_profile="ollama",
+    )
+
+    assert terminal_name == "record_hypothesis"
+    assert "tools" not in request
+    assert "tool_choice" not in request
+    assert request["response_format"]["json_schema"]["schema"] == schema
+    assert request["response_format"]["json_schema"]["strict"] is True
+    assert request["reasoning_effort"] == "low"
+
+
+def test_generic_named_tool_keeps_native_vllm_request() -> None:
+    spec = AgentCallSpec(
+        route=_route(model="gemma-4-31b-it-nvfp4"),
+        user_blocks=[CachedBlock("finish")],
+        tools=[{"name": "record_hypothesis", "description": "", "input_schema": {}}],
+        tool_choice={"type": "tool", "name": "record_hypothesis"},
+    )
+
+    request, terminal_name = _prepare_openai_request(
+        spec,
+        reasoning_effort="high",
+        compatibility_profile="generic",
+    )
+
+    assert terminal_name is None
+    assert request["tool_choice"]["function"]["name"] == "record_hypothesis"
+    assert request["tools"][0]["function"]["name"] == "record_hypothesis"
+    assert request["reasoning_effort"] == "high"
+
+
+def test_ollama_mixed_tool_transcript_keeps_native_request() -> None:
+    spec = AgentCallSpec(
+        route=_route(model="gpt-oss:120b"),
+        user_blocks=[CachedBlock("finish")],
+        tools=[{"name": "record_hypothesis", "description": "", "input_schema": {}}],
+        tool_choice={"type": "tool", "name": "record_hypothesis"},
+        extra_messages=[{"role": "user", "content": [{"type": "text", "text": "continue"}]}],
+    )
+
+    request, terminal_name = _prepare_openai_request(
+        spec,
+        reasoning_effort="high",
+        compatibility_profile="ollama",
+    )
+
+    assert terminal_name is None
+    assert request["tool_choice"]["function"]["name"] == "record_hypothesis"
+    assert "response_format" not in request
+
+
+def test_terminal_evidence_bundle_keeps_tools_and_drops_assistant_narration() -> None:
+    spec = AgentCallSpec(
+        route=_route(),
+        system_blocks=[CachedBlock("system context")],
+        user_blocks=[CachedBlock("research task")],
+        extra_messages=[
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "unsupported narration"},
+                    {
+                        "type": "tool_use",
+                        "id": "call_1",
+                        "name": "capability_search",
+                        "input": {"query": "TMD"},
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_1",
+                        "content": {"results": [{"id": "sim:md:lammps-01"}]},
+                    }
+                ],
+            },
+        ],
+    )
+
+    evidence = _terminal_evidence_bundle(spec)
+
+    assert "system context" in evidence
+    assert "research task" in evidence
+    assert "capability_search" in evidence
+    assert "sim:md:lammps-01" in evidence
+    assert "unsupported narration" not in evidence
+
+
+@pytest.mark.asyncio
+async def test_openai_terminal_synthesis_uses_fresh_low_effort_spec() -> None:
+    client = object.__new__(OpenAIClient)
+    expected = SimpleNamespace(raw="response")
+    client.call = AsyncMock(return_value=expected)
+    source = AgentCallSpec(
+        route=_route(model="gpt-oss:120b"),
+        system_blocks=[CachedBlock("system context")],
+        user_blocks=[CachedBlock("research task")],
+        tools=[
+            {"name": "capability_search", "description": "", "input_schema": {}},
+            {
+                "name": "record_hypothesis",
+                "description": "",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}},
+                    "required": ["title"],
+                },
+            },
+        ],
+        extra_messages=[
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "search",
+                        "name": "capability_search",
+                        "input": {"query": "TMD"},
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "search",
+                        "content": {"results": []},
+                    }
+                ],
+            },
+        ],
+    )
+    ctx = CallContext(
+        session_id="ses",
+        task_id="tsk",
+        agent="generation",
+        action="CreateInitialHypotheses",
+        mode="literature",
+    )
+
+    result = await OpenAIClient.finalize_terminal_record(
+        client,
+        source_spec=source,
+        ctx=ctx,
+        terminal_tool_name="record_hypothesis",
+        candidate_input=None,
+    )
+
+    assert result is expected
+    final_spec, final_ctx = client.call.await_args.args
+    assert final_spec.reasoning_effort == "low"
+    assert final_spec.extra_messages == []
+    assert [tool["name"] for tool in final_spec.tools] == ["record_hypothesis"]
+    assert final_spec.tool_choice == {"type": "tool", "name": "record_hypothesis"}
+    assert "capability_search" in final_spec.user_blocks[0].text
+    assert final_ctx.action == "CreateInitialHypotheses_terminal_synthesis"
+
+
+def test_openai_timeout_selects_thinking_and_non_thinking_limits() -> None:
+    cfg = Config()
+    cfg.retry.per_call_timeout_seconds = 111
+    cfg.retry.per_call_timeout_thinking_seconds = 222
+
+    assert _openai_request_timeout_seconds(cfg, {}) == 111
+    assert _openai_request_timeout_seconds(cfg, {"reasoning_effort": "low"}) == 111
+    assert _openai_request_timeout_seconds(cfg, {"reasoning_effort": "high"}) == 222
+
+
 def test_thinking_translates_to_reasoning_effort_for_o_series() -> None:
     spec = AgentCallSpec(
         route=_route(model="o3", thinking=8000),
@@ -422,6 +650,31 @@ def test_adapt_response_tool_call() -> None:
     assert tu.id == "call_42"
 
 
+def test_adapt_structured_terminal_response_becomes_tool_use() -> None:
+    raw = _fake_openai_response(text='{"title":"schema-valid"}', finish="stop")
+    msg = _adapt_structured_terminal_response(
+        raw,
+        "gpt-oss:120b",
+        tool_name="record_hypothesis",
+    )
+    assert msg.stop_reason == "tool_use"
+    assert len(msg.content) == 1
+    assert msg.content[0].type == "tool_use"
+    assert msg.content[0].name == "record_hypothesis"
+    assert msg.content[0].input == {"title": "schema-valid"}
+
+
+def test_invalid_structured_terminal_response_remains_text() -> None:
+    raw = _fake_openai_response(text="not JSON", finish="stop")
+    msg = _adapt_structured_terminal_response(
+        raw,
+        "gpt-oss:120b",
+        tool_name="record_hypothesis",
+    )
+    assert msg.stop_reason == "end_turn"
+    assert msg.content[0].type == "text"
+
+
 def test_adapt_response_handles_malformed_tool_args() -> None:
     raw = _fake_openai_response(
         tool_calls=[{"id": "c", "name": "x", "arguments": "not-json"}],
@@ -429,6 +682,13 @@ def test_adapt_response_handles_malformed_tool_args() -> None:
     )
     msg = _adapt_response(raw, "gpt-5")
     assert msg.content[0].input.get("_raw_arguments") == "not-json"
+
+
+def test_tool_argument_parser_accepts_markdown_fenced_json() -> None:
+    assert _parse_tool_arguments(
+        '```json\n{"title":"valid","statement":"complete"}\n```',
+        model="gemma-4-31b-it-nvfp4",
+    ) == {"title": "valid", "statement": "complete"}
 
 
 def test_adapt_response_parses_gemma_raw_tool_args_for_gemma_models() -> None:

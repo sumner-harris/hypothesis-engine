@@ -266,9 +266,9 @@ async def test_select_pair_prioritizes_warmup_before_evolution_gate(monkeypatch)
 
 def test_ranking_output_caps_are_configurable() -> None:
     cfg = Config()
-    assert cfg.ranking.pairwise_max_output_tokens == 8192
-    assert cfg.ranking.debate_max_output_tokens == 12288
-    assert cfg.ranking.verdict_retry_max_output_tokens == 1024
+    assert cfg.ranking.pairwise_max_output_tokens == 32_000
+    assert cfg.ranking.debate_max_output_tokens == 32_000
+    assert cfg.ranking.verdict_retry_max_output_tokens == 32_000
 
     cfg.ranking.pairwise_max_output_tokens = 4096
     cfg.ranking.debate_max_output_tokens = 16384

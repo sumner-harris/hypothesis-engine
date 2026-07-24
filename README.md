@@ -324,7 +324,7 @@ literature_review_max_context_results = 30
 literature_review_timeout_seconds = 300
 literature_review_fallback_to_top_results = true
 max_session_papers = 1000
-retrieval_method = "hybrid_multi_query"
+retrieval_method = "hybrid"
 context_max_chars = 30000
 rerank_enabled = true
 ```
